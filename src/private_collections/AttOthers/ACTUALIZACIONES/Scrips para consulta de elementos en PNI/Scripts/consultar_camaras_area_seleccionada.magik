@@ -1,0 +1,23 @@
+_block	
+	 setvars()
+	 _local a_inicio << date_time_now()
+	 write("Consultando camaras, espere....")
+	 _local a_plug << paf.plugin(:find_plugin)
+	 _local a_area << paf.plugin(:map_plugin).current_map.current_selection.an_element()
+	 _if a_area _is _unset
+	 _then
+		 write("No hay seleccion!")
+	 _else 
+		 _local coll << v.collection(:uub)
+		 _local a_pred << predicate.within(:location,a_area)
+		 _local a_sel << coll.select(a_pred)
+		 _local rwos << rwo_set.new()
+		 rwos.add_all(a_sel)
+		 write("Enviando a explorer...")
+		 a_plug.databus.make_data_available(:rwo_set,
+						    {a_plug,rwos,:name,a_plug.message(:find_results),
+						     :ace_name,paf.metadata_ace_name,:set_current?, _true})
+		 _local a_fin << date_time_now()
+		 write("consulta en ",a_fin - a_inicio)
+	 _endif 
+_endblock

@@ -1,0 +1,1091 @@
+#-------------------------02_REPORTE MAGIK -----------------------------------------------------------------------------------------------------------------------------
+    #----------------------------------002_01_RUTAS SW -----------------------------------------------------------------------------------------------------------------------------
+  
+
+            \\10.112.71.143\Smallworld
+            p \\10.112.71.143\Smallworld\sw_core -a \\10.112.71.143\Smallworld\product\config\
+
+
+            obterner nombre de atributos write_string("" en vsc con el archivo "\\10.112.71.143\Smallworld\pni430_custom\modules\ge_sw\pni_create_database\resources\base\data\dumps\case_dump\modelit_case.dmp"
+            obtener nombre de atributos write_string("" en vsc con el archivo \\10.112.71.143\Smallworld\pni430_custom\modules\ge_sw\pni_create_database\resources\base\data\dumps\ace_dump\ace_Physical_NI_Admin_User.dmp
+
+
+    #----------------------------------002_01_EJECUTABLES PRINCIPALES -----------------------------------------------------------------------------------------------------------------------------
+           
+           #traer todos los datos de una colleccion 
+
+                    _block
+                vista << gis_program_manager.cached_dataset(:gis)
+                buildings << vista.collection(:building)
+                un_objeto << buildings.select(predicate.eq(:id, 3492000048800395440)).an_element()
+
+                show("=== TODOS LOS CAMPOS DEL OBJETO ===")
+                _for campo _over un_objeto.record_exemplar.all_fields.elements()
+                _loop
+                    _try
+                        val << un_objeto.perform(campo.name)
+                        _if val _isnt _unset
+                        _then
+                            show("  ", campo.name, " = ", val)
+                        _endif
+                    _when error
+                    _endtry
+                _endloop
+            _endblock
+            $
+                    
+
+
+
+             #tener todas las conexiones de un elemento 
+
+                            _block
+                    objeto_id << 3492000048819396124
+                    show("=== ESCANEANDO TODAS LAS BASES DE DATOS ===")
+                    
+                    _for ds _over gis_program_manager.cached_datasets()
+                    _loop
+                        _try
+                            show("--- DATASET: ", ds, " ---")
+                            _for col_name _over ds.collections.keys.elements()
+                            _loop
+                                _try
+                                    col << ds.collection(col_name)
+                                    encontrado << col.select(predicate.eq(:id, objeto_id)).an_element()
+                                    _if encontrado _isnt _unset
+                                    _then
+                                        show("  ENCONTRADO en: ", col_name)
+                                        _for campo _over encontrado.record_exemplar.all_fields.elements()
+                                        _loop
+                                            _try
+                                                val << encontrado.perform(campo.name)
+                                                _if val _isnt _unset
+                                                _then
+                                                    show("    ", campo.name, " = ", val)
+                                                _endif
+                                            _when error
+                                            _endtry
+                                        _endloop
+                                    _endif
+                                _when error
+                                _endtry
+                            _endloop
+                        _when error
+                        _endtry
+                    _endloop
+                    show("=== FIN ESCANEO ===")
+                _endblock
+                $       
+                        
+                        
+                        
+           
+           
+            #encontrar colleccion 
+            Ds_building << vista.collection(:change_tracking)
+            show(vista.collection(:change_tracking).select(predicate.eq(:id,13)).size > 0)
+
+            #listarr todo collecciones 
+            _for col _over vista.collections.fast_elements() _loop
+            write(col.insert_date)
+            _endloop
+
+            # validar tipo  caracter string- number etc 
+
+                _block
+                design_ds << gis_program_manager.cached_dataset(:design_admin)
+                alt_map << design_ds.collection(:swg_dsn_scheme_alternative_map)
+                
+                _for alt _over alt_map.select(predicate.eq(:dataset_name, "gis")).elements()
+                _loop
+                    nom << alt.alternative_name.write_string
+                    _if nom.index_of_seq("PLAN_") _isnt _unset
+                    _then
+                        num_str << nom.slice_to_end(6)
+                        num << num_str.as_number()
+                        show("nom: ", nom, " | num_str: ", num_str, " | num: ", num, " | tipo: ", num.class_name)
+                        _leave
+                    _endif
+                _endloop
+            _endblock
+            $
+
+
+            # traer todo lo que trae esa colleccion 
+
+                    _block
+                design_ds << gis_program_manager.cached_dataset(:design_admin)
+                alt_map << design_ds.collection(:swg_dsn_scheme_alternative_map)
+                
+                # Ver todos los campos del alt_map
+                un_reg << alt_map.an_element()
+                show("=== CAMPOS DE ALT_MAP ===")
+                _for campo _over un_reg.record_exemplar.all_fields.elements()
+                _loop
+                    show("  ", campo.name, " = ", un_reg.perform(campo.name))
+                _endloop
+                
+                # Ver cuantos registros hay
+                show("Total registros alt_map: ", alt_map.size)
+                
+                # Ver los ultimos registros (los mas recientes)
+                show("=== ULTIMOS 3 REGISTROS ===")
+                todos << rope.new()
+                _for alt _over alt_map.select(predicate.eq(:dataset_name, "gis")).elements()
+                _loop
+                    todos.add(alt)
+                _endloop
+                
+                i << todos.size
+                _for alt _over todos.elements()
+                _loop
+                    _if i <= todos.size _andif i >= todos.size - 2
+                    _then
+                        show("  id: ", alt.id, " | alternative_name: ", alt.alternative_name, " | scheme_id: ", alt.scheme_id)
+                    _endif
+                    i << i - 1
+                _endloop
+            _endblock
+            $
+
+                    "=== ULTIMOS 3 REGISTROS ==="
+            "  id: " 1012 " | alternative_name: " "PLAN_1011" " | scheme_id: " 4281
+            "  id: " 1020 " | alternative_name: " "PLAN_1019" " | scheme_id: " 4664
+            "  id: " 1028 " | alternative_name: " "PLAN_1027" " | scheme_id: " 14974
+            MagikSF>
+
+
+        #identificar mundo 
+
+                MagikSF>
+            _block
+                vista << gis_program_manager.cached_dataset(:gis)
+                design_ds << gis_program_manager.cached_dataset(:design_admin)
+                alt_map << design_ds.collection(:swg_dsn_scheme_alternative_map)
+                esquemas << design_ds.collection(:swg_dsn_scheme)
+
+                # Obtener el objeto
+                underground_routes << vista.collection(:underground_route)
+                un_objeto << underground_routes.select(predicate.eq(:id, 3492000048800395440)).an_element()
+
+                # Ver todos los campos ds! del objeto
+                show("=== CAMPOS DS! DEL OBJETO ===")
+                _for campo _over un_objeto.record_exemplar.all_fields.elements()
+                _loop
+                    nom << campo.name.write_string
+                    _if nom.index_of_seq("ds!") _isnt _unset _orif
+                    nom.index_of_seq("world") _isnt _unset _orif
+                    nom.index_of_seq("rwo") _isnt _unset
+                    _then
+                        show("  ", campo.name, " = ", un_objeto.perform(campo.name))
+                    _endif
+                _endloop
+            _endblock
+            $
+            "=== CAMPOS DS! DEL OBJETO ==="
+            "  " :world_id1 " = " 1440730
+            "  " :ds!version " = " 84938486
+            "  " :rwo_id " = " gis_id(5857718,946241825,612802304610685789)
+            MagikSF>    
+
+
+
+        # todo lo qu tiene la coleccion 
+
+                _block
+                vista << gis_program_manager.cached_dataset(:gis)
+                
+                # El ds!version es el numero de version del dataset cuando se guardo el objeto
+                # Buscar que alternativa tenia esa version
+                show("=== ALTERNATIVAS ACTIVAS EN EL DATASET GIS ===")
+                _for key _over vista.alternative_history.keys.elements()
+                _loop
+                    estado << vista.alternative_history[key]
+                    show("  key: ", key, " | checkpoint: ", estado.checkpoint, " | mode: ", estado.mode)
+                _endloop
+            _endblock
+            $  
+
+            $
+        "=== ALTERNATIVAS ACTIVAS EN EL DATASET GIS ==="
+        "  key: " :|***top***| " | checkpoint: " unset " | mode: " :readonly
+        "  key: " :\||Engineering Design| " | checkpoint: " unset " | mode: " :readonly
+        "  key: " :\||Engineering Design|\||PLAN_34195| " | checkpoint: " unset " | mode: " :write
+        MagikSF>
+
+
+
+    #----------------------------------002-02_DATASETS
+
+        show("Valores disponibles en sheath_splice:", empalme_obj.spec_id) 
+        show("Valores posibles dentro de sheath_splice:", vista.collection(:change_tracking).select(:type)) 
+
+
+        show(gis_program_manager.cached_dataset(:gis)) #llamado a la carpeta gis
+        _for dataset _over gis_program_manager.cached_datasets()_loop    show(dataset)_endloop #da reshelfe ls de gestores de sistema 
+        $
+            case_ds_view(Case)
+            gis_ds_view(Ds_rutas)
+            gis_ds_view(Ds_disponibilidad)
+            mit_gis_ds_view(Gis)
+            gis_ds_view(Ds_notificacion_address)
+            gis_ds_view(Ds_history)
+            case_ds_view(Case_histoty)
+            gis_ds_view(Ds_cartografia)
+            gis_ds_view(Design_admin)
+            case_ds_view(Design_admin_case)
+            database_view(Job_queue)
+            schematics_ds_view(Swdp_schematics)
+            gis_ds_view(Ds_address_manager)
+            template_ds_view(Template)
+            schematics_uds(uds_schematics)
+            dyn_enums_ds_view(Dynamic_enumerator)
+            MagikSF>
+
+
+    #----------------------------------002-03_COLECCIONES
+     
+        gerarquias = (dataset,colleccion,attribute, value)
+        
+            <Masivo>
+                (sheath_with_loc)
+                (sheath_splice)
+                (sheath_with_loc_terminal)
+                (optical_splitter)
+                (figure_eight)
+                (mit_hub)
+            </Masivo>
+            
+            <Corporativo>
+                (sheath_with_loc)
+                (sheath_splice)
+                (figure_eight)
+                (copper_line_of_count)
+                (mit_bay)
+                (mit_shelf)
+                (mit_rme_port)
+                (building)
+                (mit_card)
+                (mit_slot)
+            
+            </Corporativo>
+            
+            <Infraestructura>
+                (mit_bay)
+                (mit_shelf)
+                (mit_hub)
+                (address)
+                (uub)
+                (pole)
+                (access_point)
+                (mit_rme_port)
+                (building)
+                (mit_card)
+                (mit_slot)
+                (aerial_route)
+                (mit_terminal_enclosure)
+                (strip)
+                (limite_nodo_optico)
+                (ftth!zone)
+                (limite_distrito_cobre)
+                (underground_route)
+                (sheath_with_loc)
+                (copper_line_of_count)
+            </Infraestructura>
+            
+
+           
+            sw_gis!area_polygon
+            mit_duct_annotation
+            int!copper_cable_copper_line_o
+            mit_underground_route_annotation
+            sheath_with_loc
+            int!limite_centra_uub
+            street_annotation
+            manufacturer
+            mit_cable_annotation
+            mit_bundle_bundle_detail
+            int!strw_connect__mit_shelf
+            mit_bundle_pin
+            sw_gis!tin
+            power_supply_grp
+            mit_cable_section
+            mit_conduit_annotation
+            mit_rme_port
+            int!aerial_route_mit_structure
+            sw_gis!colour_map
+            ex_dd!domain_test
+            amplifier_cable_simulator
+            mit_terminal_enclosure
+            monitor_transponder
+            int!mit_conduit_mit_conduit_a
+            cable_marker
+            sw_gis!chain_link
+            splice_holder_content
+            int!mit_coaxial_c_pwr_supply_mo
+            mit_rme_power_battery
+            power_terminal_spec
+            dd!enumerator_map
+            int!copper_splice_repeater
+            mit_sheath_pin
+            swg_dsn_sr_build_phase
+            swg_dsn_annotation_formula
+            dd!field_unset_value
+            int!mit_structure_mit_coaxial_c
+            equipment_port_relationship
+            int!mit_coaxial_c_monitor_trans
+            mit_cond_route_face_opening_text
+            sheath_with_loc_terminal_spec
+            mit_shelf
+            sw_gis!gro
+            int!limite_nodo_o_underground_r
+            int!arrendadores_aerial_route
+            coaxial_splitter
+            int_unbalanced_port_spec
+            rme_container
+            limite_central
+            spec_group
+            optical_receiver
+            mit_fiber_fiber_detail
+            int_balanced_port
+            mit_swept_tee
+            drawing
+            fs_pole
+            swg_dsn_point_cancellation
+            sw_gis!colour_map_table
+            cable_marker_spec
+            sheath
+            splice_module_spec
+            swg_dsn_area_cancellation
+            drawing_function
+            mit_splice_tray
+            mit_associated_equipment
+            power_bubble
+            int!mit_rme_templ_rme_container
+            pair_gain_spec
+            sw_gis!colour_map_bucket
+            freq
+            access_point_spec
+            mit_rme_power_supply
+            int!mit_cable_mit_coaxial_c
+            sw_gis!simple_chain
+            int!mit_conduit_s_mit_conduit_s
+            dd!domain_test
+            waterway
+            raster_map
+            service_area
+            sw_gis!link_sector
+            int!power_splice_power_termina
+            mit_bundle_pin_area
+            dd!field_insert_date
+            int!conduit_adapt_mit_conduit1
+            in_line_equalizer
+            sheath_terminal_spec
+            int!limite_centra_mit_terminal_
+            dd!visible_field
+            splice_module
+            dd!version
+            sw_gis!tin_line_float_bucket
+            fs_figure_eight
+            sheath_annotation
+            fs_mit_terminal_enclosure
+            mit_floor
+            rf_transition
+            sw_gis!tin_triangle
+            spec
+            sw_gis!tin_tin_id
+            mit_hub
+            int!ftth!demand_p_ftth!customer
+            power_cable_spec
+            power_terminal
+            swg_dsn_chain_cancellation
+            transducer
+            int!splice_closur_sheath_termin
+            lockbox
+            ground_closure
+            int!mit_cable_mit_sheath_wi
+            int!pole_mit_structure
+            int!limite_nodo_o_caja_cobre
+            sw_gis!simple_chain_float_bucket
+            conduit_spec
+            int!mit_copper_ca_copper_slack
+            swif!info_flag_to_object3
+            amp_equalizer_spec
+            int!aerial_route_ocupacion_est
+            fs_access_point
+            mit_rme_power_battery_spec
+            optical_spec
+            int!limite_nodo_o_mit_terminal_
+            sw_gis!text
+            int!mit_conduit_r_underground_r
+            power_inserter
+            ftth!zone
+            sw_gis!simple_point
+            amp_cascade
+            service_node
+            ex_dd!enumerator_map
+            int!new_street_street_annota
+            int!limite_distri_mit_terminal_
+            mit_conduit
+            internal_hybrid
+            sw_gis!transform_bucket
+            int!underground_r_mit_structure
+            pole
+            fs_strip
+            mit_conduit_route_face_spec_data
+            int!underground_r_mit_duct
+            mit_mwv_antenna_connection
+            sw_gis!drawing_function_param
+            int!limite_centra_underground_r
+            dd!predicate
+            int!fiber_number_bundle_color
+            sw_gis!world_coordinate_system
+            coaxial_cable_annotation
+            int!underground_r_mit_cable
+            mit_room
+            signal_probe
+            ftth!demand_point
+            sw_gis!sql_predicate
+            copper_crv
+            mit_coaxial_cable_pin
+            int!copper_termin_copper_line_o
+            coaxial_cable
+            sw_gis!node
+            mit_presentation_object
+            build_out_spec
+            mayorista
+            sw_gis!polygon
+            count
+            int!underground_r_mit_undergrou
+            int!power_cable_cable_marker
+            dd!field_domain
+            power_supply
+            wavelength
+            sw_gis!transform
+            int!pair_gain_copper_line_o
+            int!sheath_with_l_sheath_annota
+            drafting_lines
+            optical_loss
+            uub
+            sw_gis!manifold_definition
+            coax_splice_spec
+            conduit_adapter_spec
+            splice_tray_spec
+            int!mit_building__mit_floor
+            mit_fiber_pin
+            int!new_mit_termi_new_mit_bay
+            int!mit_logical_c_mit_conduit
+            swif!info_flag
+            swg_dsn_free_cancellation
+            int!ftth!zone_underground_r
+            street
+            int!new_mit_slot_new_mit_card
+            int!sheath_with_l_copper_line_o1
+            int!underground_r_mit_undergrou1
+            tap_spec
+            int!conduit_adapt_mit_conduit
+            limite_nodo_optico
+            dxf_translation_defaults
+            internal_splitter_spec
+            optical_trans
+            powering_area
+            int!sheath_with_l_copper_line_o
+            int!mit_structure_mit_copper_ca
+            street_designation_spec
+            int!new_mit_shelf_new_mit_slot
+            figure_eight
+            dd!field_default
+            int!copper_cable_copper_slack
+            int!ftth!zone_uub
+            sw_gis!simple_area_coords
+            int!mit_slot_mit_multi_por
+            drafting_areas
+            sw_gis!simple_area
+            monitor_amp_node_relationship
+            int!uub_drop
+            mit_df
+            int!copper_cable_copper_cable_
+            spec_assembly
+            int!sheath_splice_sheath_with_l
+            sw_gis!physical_grid_bucket
+            optical_node
+            sw_gis!simple_point_float_attr
+            sw_gis!simple_area_sector
+            copper_splice_spec
+            pwr_supply_monitor
+            int!new_mit_rme_t_new_mit_slot
+            int!limite_centra_strip
+            fs_factibilidad
+            int!copper_splice_copper_termin
+            sw_gis!coordinate_system
+            street_suffix_spec
+            bundle_color
+            int!new_mit_rme_t_new_mit_shelf
+            access_point
+            int!underground_r_ocupacion_est
+            sheath_terminal
+            fiber_data_block
+            mit_fiber_connection
+            designation
+            sw_gis!chain
+            int!new_mit_rme_t_new_mit_card
+            bundle_color_number
+            int!mit_rme_port_copper_line_o
+            ava!design_item_for_segments
+            int!new_mit_rme_t_new_mit_bay
+            wdm
+            sw_gis!link_float_bucket
+            int!new_mit_shelf_mit_rme_port
+            sw_gis!area_on_area
+            sw_gis!grid_pyramid
+            int!copper_splice_pair_gain
+            int!mit_cable_mit_sheath_pi
+            int!mit_structure_rme_container
+            int!new_mit_hub_new_mit_bay
+            mit_conduit_route_face_spec
+            optical_splice
+            sw_gis!text_id
+            int!port_port
+            amplifier_equalizer
+            building
+            int!mit_sheath_wi_figure_eight
+            amp_pad_spec
+            hi_leg
+            swg_dsn_sr_key_string
+            int!cable_marker_coaxial_cable
+            pair_gain
+            coax_cable_spec
+            int!new_mit_bay_new_mit_shelf
+            capacitor
+            int!mit_hub_mit_structure
+            int!arrendadores_pole
+            dd!view_field
+            int!new_mit_bay_new_mit_bay_t
+            int!mit_rme_port_copper_crv
+            mit_multi_port
+            optical_connector_spec
+            int!mit_structure_mit_presentat1
+            entity_to_count_relationship
+            int!limite_nodo_o_aerial_route
+            int!limite_distri_caja_cobre
+            sw_gis!grid_tile
+            soft_join_insert_dates
+            int!mit_structure_mit_presentat
+            int!mit_conduit_mit_conduit_s
+            project
+            int!power_cable_power_cable_a
+            optical_connector
+            int!mit_multi_por_copper_line_o
+            alt_transp_area
+            sw_gis!tin_node
+            fs_underground_route
+            sw_gis!point_float_attr
+            strip
+            int!conduit_adapt_hole_spec
+            sw_gis!chain_on_area
+            conduit_adapter
+            sw_gis!grid_tile_colour_map_id
+            int!limite_nodo_o_strip
+            lot
+            pwr_step
+            int!mit_duct_temp_mit_duct
+            power_cable
+            int!mit_shelf_mit_multi_por
+            fs_sheath_splice
+            zip_code
+            sw_gis!rwo_geom_attribute
+            dd!join_methods
+            sw_gis!point
+            power_block
+            fiber_spec
+            int!uub_ground
+            coax_splitter_spec
+            sw_gis!physical_grid_tile
+            int!transducer_copper_line_o
+            optical_splice_closure_spec
+            internal_hybrid_spec
+            int!route_mit_conduit_s
+            rme_container_face
+            int!mdu_route_mit_structure
+            int!mit_physical__mit_conduit
+            sheath_with_loc_terminal
+            int!swg_dsn_schem_swg_dsn_schem
+            copper_cable
+            ex_dd!text
+            int!limite_distri_strip
+            viewport_mapping_cs
+            int!limite_centra_aerial_route
+            int!ftth!zone_strip
+            int!capacitor_copper_line_o
+            internal_jumper
+            mit_copper_cable_pin
+            int!uub_nid
+            fs_aerial_route
+            int!strw_con_mit_bay
+            drafting_texts
+            tap_port_lvl_spec
+            copper_line_of_count
+            sw_gis!inclusion_manifold
+            mit_cond_route_face_opening_spec
+            int!load_coil_copper_line_o
+            mit_duct_template
+            int!building_mit_structure
+            sheath_spec
+            int!ftth!zone_mit_terminal_
+            spec_entity
+            int!new_mit_card_mit_rme_port
+            sw_gis!tin_line
+            viewport_mapping
+            fs_lote
+            dd!field_insert_date_def
+            amplifier_pad
+            int!build_out_copper_line_o
+            int!pole_drop
+            mit_rme_power_supply_spec
+            ex_dd!predicate
+            optical_splice_spec
+            sw_gis!raster_geom_properties
+            power_cable_annotation
+            drafting_points
+            dd!table_validator
+            power_splice
+            int!mit_coaxial_c_power_block
+            fiber_attribute
+            int!ftth!zone_aerial_route
+            sw_gis!dimension_holder
+            copper_slack
+            int!bundle_number_bundle_color
+            power_splice_spec
+            mdu_route_spec
+            copper_terminal_spec
+            background_raster
+            int!mit_conduit_r_mit_conduit_r
+            swg_dsn_text_cancellation
+            int!mit_conduit_r_mit_cond_rout
+            attenuator
+            sw_gis!logical_grid
+            int!repeater_copper_line_o
+            dd!field_printing
+            int!arrendadores_uub
+            port
+            ground
+            splice_closure
+            dd!join
+            dd!logical_field
+            loss
+            int!limite_centra_caja_cobre
+            rf_spec
+            int!access_point_caja_cobre
+            sw_gis!physical_grid
+            alt_transp_route
+            dd!collection
+            amp_data_block
+            fs_sheath_with_loc
+            attenuator_spec
+            dd!join_hetero
+            sw_gis!simple_area_float_bucket
+            dd!join_hetero_target_table
+            sw_gis!text_coords
+            fs_connectivity
+            power_supply_monitor_spec
+            int!ftth!zone_ftth!demand_p
+            int!mit_structure_conduit_adapt
+            optical_splitter
+            dxf_conversion_text_item
+            address
+            int!mit_card_mit_multi_por
+            jumper
+            swg_dsn_invisible_rwo_ref
+            spec_class
+            sw_gis!world_insert_date
+            limite_distrito_cobre
+            tap
+            capacitor_spec
+            int!copper_splice_capacitor
+            mit_bay_text
+            int!new_mit_shelf_new_mit_card
+            bundle_color_fiber_color_number
+            pwr_supply_spec
+            mit_power_cable_pin
+            int!pole_nid
+            hole_spec
+            int!copper_splice_build_out
+            mit_port_pin
+            int!mit_cable_mit_power_cab
+            mit_conduit_route_face_text
+            sw_gis!polygon_to_hole
+            int!mit_structure_point_of_inte
+            transducer_spec
+            drawing_template
+            copper_splice
+            optical_receiver_spec
+            int!arrendadores_underground_r
+            mit_duct_section
+            port_spec_freq
+            int!mit_structure_mit_sheath_wi
+            ordered_insert_dated_soft_join
+            pwr_inserter_spec
+            int!cable_marker_sheath
+            dd!physical_field
+            edfa
+            int!sheath_with_l_figure_eight
+            mit_related_document
+            int!limite_distri_underground_r
+            terminal_enclosure_spec
+            optical_splitter_spec
+            int!ftth!zone_pole
+            monitor_transponder_spec
+            swg_dsn_temp_text_change
+            swif!info_flag_to_object1
+            int!ftth!zone_caja_cobre
+            coax_connector_spec
+            mit_tower_spec
+            mit_bay
+            aerial_route
+            bundle_spec
+            fiber_number_scheme
+            fiber_color
+            int!uub_strip
+            int!new_mit_slot_mit_rme_port
+            int!mit_conduit_r_mit_conduit_r2
+            anchor
+            mit_mwv_antenna
+            amp_spec
+            int!pole_ground
+            mit_conduit_route_face_opening
+            int!mit_conduit_r_mit_conduit_r1
+            gestion_address
+            repeater_spec
+            drop
+            extension_arm
+            sw_gis!manifold_rules
+            int!sheath_with_l_cable_marker
+            fs_sheath_with_loc_terminal
+            riser
+            load_coil
+            interstage_accessory
+            repeater
+            int!lockbox_nid
+            wdm_spec
+            int!mit_cable_mit_cable_ann
+            sw_gis!tin_line_sector
+            mit_logical_conduit_bundle
+            int!copper_splice_transducer
+            mit_slot
+            int!sheath_sheath_annota
+            edfa_spec
+            load_coil_spec
+            int!sheath_with_l_ocupacion_est
+            int!lockbox_drop
+            int!limite_nodo_o_pole
+            int!mit_terminal__mit_structure
+            int!mit_bundle_pi_mit_bundle_pi
+            int!copper_cable_cable_marker
+            mit_tower
+            dd!enumerator_def
+            mit_card
+            dd!trigger
+            split_tracking
+            int!limite_distri_uub
+            sw_gis!world
+            point_of_interest
+            rme_spec
+            fs_caja_cobre
+            int!mayorista_sheath_splice
+            int!mit_floor_mit_room
+            int!limite_distri_aerial_route
+            mit_underground_route_section
+            strw_connect_point
+            int!copper_splice_load_coil
+            dd!view_join
+            sw_gis!dimension_component
+            fs_uub
+            terminator
+            int!mit_cable_mit_cable_sec
+            sw_gis!simple_chain_sector
+            port_to_address_relationship
+            logo
+            street_prefix_spec
+            int!access_point_mit_conduit_s
+            midspan_junction
+            ground_closure_spec
+            int!mit_duct_mit_duct_anno
+            sw_gis!tin_line_coords
+            structure_equipment_relationship
+            copper_cable_spec
+            operational_status_table
+            mit_sheath_with_loc_pin
+            swg_dsn_annotation
+            int!mit_duct_mit_conduit
+            rf_transition_int_port
+            complex
+            mit_mwv_antenna_spec
+            copper_ig
+            arrendadores
+            int!lockbox_mit_structure
+            dd!view_ref_tables
+            bundle_number_scheme
+            fs_optical_splitter
+            sw_gis!tile_bucket
+            function_geometry
+            mit_network_connection
+            swg_dsn_scheme_transaction
+            drop_code_insert_date
+            sw_gis!link
+            mit_cloc_cloc_detail
+            int!mit_duct_mit_duct_sect
+            int!access_point_mit_structure
+            sw_gis!rwo_definition
+            int!mit_floor_riser
+            swg_dsn_scheme_relationship
+            uub_spec
+            dd!join_condition
+            build_out
+            copper_cable_annotation
+            mit_internal_connection
+            sw_gis!polygon_link
+            int!limite_nodo_o_uub
+            dimensioning
+            dd!view_collection
+            coaxial_splice
+            pol_boundary
+            splice_holder
+            sheath_splice
+            int!limite_centra_pole
+            sw_gis!simple_chain_coords
+            waterbody
+            dd!code_text
+            optical_trans_spec
+            internal_splitter
+            ocupacion_estructura
+            in_line_equalizer_spec
+            mit_conduit_section
+            int!mit_cable_mit_copper_ca
+            int!mit_duct_temp_mit_conduit
+            catalogo_olt
+            sw_gis!datamodel_change_tracking
+            underground_route
+            mit_duct
+            construction
+            mdu_route
+            sw_gis!text_sector
+            caja_cobre
+            mit_internal_annotation
+            int!mit_sheath_pi_figure_eight
+            int!uub_mit_structure
+            location_address_relationship
+            int!mit_cable_mit_cable
+            copper_terminal
+            ftth!customer_premise
+            sw_gis!grid_tile_cs
+            sw_gis!text_bucket
+            point_of_attachment
+            generic_soft_join
+            int_unbalanced_port
+            swif!info_flag_to_object2
+            int!mit_structure_mit_sheath_pi
+            customer_address_relationship
+            battery_spec
+            sw_gis!link_coords
+            change_tracking
+            int!mit_structure_mit_power_cab
+            nid_spec
+            mit_uub_template
+            amp_cable_simulator_spec
+            mit_structure_route
+            amplifier
+            dd!join_field_structure
+            mit_physical_conduit_bundle
+            mit_rme_template
+            dd!conversions
+            port_spec
+            boundary
+            construction_note
+            sw_gis!point_on_area
+            mit_cable
+            mit_structure_point
+            optical_node_spec
+            mit_building_structure
+            mit_conduit_route_face
+            associated_drawing
+            int!mit_conduit_r_mit_structure
+            dd!text
+            int!limite_distri_pole
+            mit_mwv_antenna_connection_pin
+            int!coaxial_cable_coaxial_cable
+            sw_gis!area
+            campus
+            dd!field_stored_unit
+            ex_dd!version
+            int!mit_rme_port_copper_crv1
+            nid
+            mit_cloc_connection
+            MagikSF
+
+    #----------------------------------002-04_CODIGO AYUDA
+
+        #IMPORTANTE : CODIGO PARA SABER SI EXISTE ATRIBUTO Y VALOR SEGUN ID 
+
+
+
+                     _block
+                vista << gis_program_manager.cached_dataset(:gis)
+                vista.checkpoint("sheath_with_loc")
+                sheath_with_locs << vista.collection(:sheath_with_loc)
+                id_a_buscar << 3492000048815557863
+
+                un_sheath_with_loc << sheath_with_locs.select(predicate.eq(:id, id_a_buscar)).an_element()
+
+                _if un_sheath_with_loc _isnt _unset
+                _then
+                    _try
+                        gsvalor << un_sheath_with_loc.mit_hub1 # cambiar 
+                        show("valor es: " + gsvalor.write_string)
+                    _when error
+                        show("Fallo: El edificio se encontró, pero no tiene una propiedad 'mit_hub'.")
+                    _endtry
+                _else
+                    show("Fallo: No se encontró el edificio con el ID " + id_a_buscar.write_string)
+                _endif
+            _endblock
+            
+
+
+
+
+
+
+
+
+            _block
+                vista << gis_program_manager.cached_dataset(:gis)
+                vista.checkpoint("building")
+                buildings << vista.collection(:building)
+                id_a_buscar << 3492000048811470165
+
+                un_building << buildings.select(predicate.eq(:id, id_a_buscar)).an_element()
+
+                _if un_building _isnt _unset
+                _then
+                    _try
+                        gsvalor << un_building.insert_date # cambiar 
+                        show("valor es: " + gsvalor.write_string)
+                    _when error
+                        show("Fallo: El edificio se encontró, pero no tiene una propiedad 'insert_date'.")
+                    _endtry
+                _else
+                    show("Fallo: No se encontró el edificio con el ID " + id_a_buscar.write_string)
+                _endif
+            _endblock
+            $
+
+
+
+
+            #IMPORTANTE : MISMO CODIGO PERO SIN MENCIONAR ID 
+            _block
+                vista << gis_program_manager.cached_dataset(:gis)
+                Ds_change_trackings << vista.collection(:change_tracking)
+                un_Ds_change_tracking << Ds_change_trackings.an_element()
+
+                _if un_Ds_change_tracking _isnt _unset
+                _then
+                    show("Éxito: Se encontró el primer edificio.")
+                    _try
+                        gsvalor << un_Ds_change_tracking.object_id
+                        show("El estado de construcción es: " + name.write_string)
+                    _when error
+                        show("Fallo: El edificio se encontró, pero no tiene una propiedad 'insert_date'.")
+                    _endtry
+                _else
+                    show("Fallo: No se encontró ningún edificio en la colección.")
+                _endif
+            _endblock
+#______________________________________________________________________________________________________________________________________________________________________________________________________________________________________________________
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+___________________________________________________________________________________________________________________
+
+
+
+CONTRATO DE AMISTAD Y LEALTAD LABORAL
+
+Entre:
+PAULA CATHERIN JAIME,
+GABRIEL ESTEBAN BOADA 
+
+ambos actualmente empleados en COLVALTEL ETB, acuerdan lo siguiente:
+
+CLÁUSULA PRIMERA – OBJETO DEL CONTRATO
+Ambas partes acuerdan y se comprometen, de manera libre y voluntaria, a que si una de ellas se retira de la empresa por cualquier motivo antes que la otra, tendrá la obligación moral, emocional y simbólica de llevarse consigo a la otra parte.
+
+CLÁUSULA SEGUNDA – FORMA DE “LLEVARSE”
+Se entenderá por “llevarse” a la otra parte:
+
+Ayudar a encontrar una nueva oportunidad laboral, preferiblemente igual o mejor a la actual.
+
+Recomendar activamente a la otra persona en caso de cambio de empresa.
+
+No disfrutar del cambio sin compartirlo con la otra parte.
+
+Y, en general, no abandonar al compañero/a en la selva corporativa sin previo rescate.
+
+CLÁUSULA TERCERA – VALIDEZ
+Este contrato entra en vigencia desde la fecha de firma y se mantendrá vigente hasta que ambos abandonen la empresa, juntos o por separado, cumpliendo con lo aquí acordado.
+
+CLÁUSULA CUARTA – HONOR Y HUMOR
+Este contrato se firma en nombre de la amistad, la complicidad y las promesas que se hacen entre compañeros de guerra laboral. No es legalmente vinculante, pero sí moralmente obligatorio (y quien lo rompa será objeto de memes y reclamos amistosos de por vida).
+
+
+CLÁUSULA QUINTA – ELEMENTOS DE VALOR EMOCIONAL
+Ambas partes reconocen la existencia de un espejo que ha sido desde el primer día símbolo de su unión, risas y momentos compartidos.
+Este espejo es declarado elemento principal de valor emocional. En caso de que una de las partes se retire de la empresa antes que la otra, tendrá el derecho irrevocable de llevárselo consigo, como símbolo de esta alianza y del inicio de esta promesa. 
+
+
+Firmado el día 30/04/2025 en Bogota
+
+
+Firma de La Compañera _________________________
+
+
+
+
+Firma del Compañero ___________________________
+

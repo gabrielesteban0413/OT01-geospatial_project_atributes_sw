@@ -1,0 +1,65 @@
+# EXCLUIR CARPETAS COMPLETAS
+data/
+docs/
+output/
+delete/
+src/quality/OBSOLETOS/
+src/private_collections/AttOthers/ACTUALIZACIONES/Cargues_ArcGIS/
+src/transformations/01_Scripts_Validacion/build/
+
+# EXCLUIR ARCHIVOS GRANDES DETECTADOS
+src/private_collections/AttOthers/ACTUALIZACIONES/Script_Borrado_placas/Borrar_placas.txt
+src/private_collections/AttOthers/ACTUALIZACIONES/Script_Construcciones/c_p1.txt
+src/private_collections/AttOthers/ACTUALIZACIONES/Script_Modificar_4campos_en_Lote/Script_Cambio_Uso_1/cambio_usos_nulos_sw - copia.txt
+src/private_collections/AttOthers/ACTUALIZACIONES/Script_Poblar_Uso_ACTUAL/usos_1.txt
+src/private_collections/02_mit_rme_port/edit/P00_MERGE2.txt
+config/db_ppal_sw.magik
+
+# EXCLUIR ARCHIVOS COMPILADOS Y TEMPORALES
+**/build/
+**/__pycache__/
+*.pyc
+*.pyo
+*.pkg
+*.pyz
+* - copia.*
+*~$
+*.tmp
+*.bak
+*.log
+
+# EXCLUIR ARCHIVOS GIS PESADOS
+*.gdb/
+*.shp
+*.shx
+*.dbf
+*.prj
+*.sbn
+*.sbx
+
+# EXCLUIR VIDEOS Y MULTIMEDIA
+*.mp4
+*.webm
+*.avi
+*.mov
+*.mkv
+*.mp3
+
+# EXCLUIR EJECUTABLES Y COMPRIMIDOS
+*.exe
+*.msi
+*.zip
+*.rar
+*.7z
+
+# EXCLUIR DOCUMENTOS PESADOS
+*.pdf
+*.xlsx
+*.docx
+*.pptx
+*.xlsm
+
+# EXCLUIR SISTEMA
+desktop.ini
+.DS_Store
+Thumbs.db

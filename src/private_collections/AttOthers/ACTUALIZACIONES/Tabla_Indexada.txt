@@ -1,0 +1,29 @@
+_block
+	
+	gis_program_manager.create_scratch_collection(:ayuda,{{:clave, :ds_char16_vec, 100}, {:id, :ds_char16_vec, 100}},1)
+	mi_tabla << gis_program_manager.scratch_table(:ayuda)
+	predios << gis_program_manager.cached_dataset(:ds_cartografia).collection(:lote)
+	contador << 0 
+	
+	_for predio _over predios.elements()
+	_loop
+		
+		contador +<< 1
+		_if contador _mod 1000 = 0 
+		_then 
+			show(contador)
+		_endif 
+		
+		la_clave << predio.codigo_lote.write_string
+		el_id << predio.id.write_string
+		
+		elemento << mi_tabla.new_detached_record()
+		
+		elemento.clave << la_clave
+		elemento.id << el_id
+		
+		mi_tabla.insert(elemento)
+		
+	_endloop
+_endblock
+$

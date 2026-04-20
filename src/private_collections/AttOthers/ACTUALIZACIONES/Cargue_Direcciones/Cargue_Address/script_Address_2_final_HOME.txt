@@ -1,0 +1,103 @@
+_block
+
+	vista << gis_program_manager.cached_dataset(:gis)
+	ads << vista.collection(:address)
+	detalles << gis_program_manager.cached_dataset(:ds_cartografia).collection(:detalle_direccion)
+	lotes << gis_program_manager.cached_dataset(:ds_cartografia).collection(:lote)
+	address_error << rope.new()
+	lotes_error << rope.new()
+	
+	show("Tamaño lotes: ", lotes.size)
+	show("Tamaño address: ", ads.size)
+	_dynamic !print_float_length! << 10
+	_dynamic !current_world! << vista.world
+	_dynamic !current_coordinate_system! << !current_world!.coordinate_system
+	_dynamic !print_float_precision! << 10
+	
+	no_existe_lote << rope.new()
+	contador << 0
+	predios_actualizados << 0
+	actualizada_existente << rope.new()
+
+	archivo << external_text_input_stream.new("\\APPSIGNET\Usuarios_GIS\Luis_Guillermo\CARGUE__ADDRESS.txt")
+	insertadas << rope.new()
+	contador << 0
+
+	_for una_linea _over 1.upto(100000000)
+	_loop
+
+		linea << archivo.get_line()
+		_if linea _is _unset _then
+			show("contador lineas", contador)
+			archivo.close()
+			_leave
+		_endif
+		contador +<<1
+		
+		_if contador _mod 100 = 0
+		_then
+			show(contador)
+		_endif
+		
+		texto << linea.write_string.split_by("&", _true )
+		codigo_lote << texto[1].write_string
+		direcc << texto[2].write_string
+		esta << ads.select(predicate.eq(:name, direcc)).an_element()
+		esta2 << detalles.select(predicate.eq(:direccion, direcc)).an_element()
+		
+		mio<<lotes.select(predicate.eq(:codigo_lote,codigo_lote.write_string))
+		_if mio _isnt _unset
+		_then 
+			mi_lote <<mio.an_element()
+		_else
+			no_existe_lote.add(codigo_lote)
+			_continue 
+		_endif
+
+		punto_dentro << mi_lote.limite.an_internal_point()
+
+		_if esta _is _unset
+		_then 		
+			mi_address << record_transaction.new_insert(ads, property_list.new_with(
+										 :type, "Residential",
+										 :address_number, "0",
+										 :name, direcc,
+										 :actual_count, _unset,
+										 :potential_count, _unset)).run()
+			
+
+			insertadas.add(mi_address)
+			_try 
+				mi_address.make_geometry(:location, punto_dentro)
+
+				mi_address2 << record_transaction.new_update(esta2, property_list.new_with(
+										  :latitud, mi_address.location.as_wgs84_lat_long().y.as_number().radians_to_degrees.write_string,
+										  :longitud, mi_address.location.as_wgs84_lat_long().x.as_number().radians_to_degrees.write_string)).run()
+				actualizados +<<1
+			_when error
+				address_error.add(mi_address)
+			_endtry 
+		_else
+			mi_address << record_transaction.new_update(esta, property_list.new_with(
+										  :type, "Residential",
+										  :address_number, "0",
+										  :name, direcc,
+										  :actual_count, _unset,
+										  :potential_count, _unset)).run()
+			
+			
+			_try
+				mi_address.delete_geometry()
+				mi_address.make_geometry(:location, punto_dentro)
+				actualizada_existente.add(mi_address)
+			_when error
+				show(mi_address.id)
+			_endtry
+			
+			mi_address2 << record_transaction.new_update(esta2, property_list.new_with(
+										    :latitud, mi_address.location.as_wgs84_lat_long().y.as_number().radians_to_degrees.write_string,
+										    :longitud, mi_address.location.as_wgs84_lat_long().x.as_number().radians_to_degrees.write_string)).run()
+		_endif 
+	_endloop 
+_endblock 
+$

@@ -1,0 +1,47 @@
+_block
+	det << gis_program_manager.cached_dataset(:ds_cartografia)
+	detalles << det.collection(:detalle_direccion)
+
+	show("Tamaño detalles: ", detalles.size)
+	_dynamic !current_world! << det.world
+	no_existe_address << rope.new()
+	contador << 0
+	predios_actualizados << 0
+	detalle_cambiado<< rope.new()
+	no_Existe_detalle<<rope.new()
+	
+	archivo << external_text_input_stream.new("N:\RECURSOS_UTILIDADES\PROCESOS\SCRIPTS_ACTUALIZACIONES\Script_Poblar_Uso\usos_1.txt")
+	cambiadas << rope.new()
+	contador << 0
+
+	_for una_linea _over 1.upto(100000000)
+	_loop
+
+		linea << archivo.get_line()
+		contador +<<1
+		_if linea _is _unset _then
+			show("contador lineas", contador)
+			archivo.close()
+			_leave
+		_endif
+
+		_if contador _mod 10 = 0
+		_then
+			show(contador)
+		_endif
+		
+		texto << linea.write_string.split_by("&", _true )
+		direccion_a << texto[1].write_string
+		area_nueva << texto[2].write_string
+		
+		el_detalle << detalles.select(predicate.eq(:direccion, direccion_a)).an_element()
+		_if el_detalle _isnt _unset
+		_then
+			record_transaction.new_update(el_detalle, property_list.new_with(:area_construccion, area_nueva)).run()
+			detalle_cambiado.add(el_detalle)
+		_else
+			no_Existe_detalle.add(direccion_a)
+		_endif 
+		_endloop 
+_endblock 
+$
