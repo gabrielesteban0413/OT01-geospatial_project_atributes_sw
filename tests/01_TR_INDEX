@@ -1,0 +1,239 @@
+import os
+import time
+import pandas as pd
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime
+import warnings
+warnings.filterwarnings('ignore')
+
+def obtener_todos_dwg(ruta_busqueda, ruta_salida):
+    """
+    Obtiene TODOS los archivos DWG de una ruta y subcarpetas
+    Versión optimizada con paralelismo
+    """
+    print("=" * 80)
+    print("🔍 ESCANEANDO TODOS LOS ARCHIVOS DWG")
+    print(f"📁 Ruta principal: {ruta_busqueda}")
+    print(f"💾 Salida: {ruta_salida}")
+    print("=" * 80)
+    
+    inicio_total = time.time()
+    todos_los_dwg = []
+    contador_archivos = 0
+    contador_carpetas = 0
+    
+    # Verificar si la ruta existe
+    if not os.path.exists(ruta_busqueda):
+        print(f"❌ ERROR: La ruta no existe o no es accesible")
+        print(f"   Ruta: {ruta_busqueda}")
+        return
+    
+    print("\n📊 Fase 1: Recorriendo estructura de carpetas...")
+    
+    # Primero, obtener todos los archivos DWG
+    inicio_escaneo = time.time()
+    
+    # Usar os.walk que es eficiente para redes
+    for root, dirs, files in os.walk(ruta_busqueda):
+        contador_carpetas += 1
+        
+        for file in files:
+            if file.lower().endswith('.dwg'):
+                ruta_completa = os.path.join(root, file)
+                todos_los_dwg.append(ruta_completa)
+                contador_archivos += 1
+                
+                # Mostrar progreso cada 1000 archivos
+                if contador_archivos % 1000 == 0:
+                    print(f"   📈 {contador_archivos:,} DWG encontrados...")
+    
+    fin_escaneo = time.time()
+    tiempo_escaneo = fin_escaneo - inicio_escaneo
+    
+    print(f"\n✅ ESCANEO COMPLETADO")
+    print(f"   📂 Carpetas procesadas: {contador_carpetas:,}")
+    print(f"   📄 Archivos DWG totales: {contador_archivos:,}")
+    print(f"   ⏱️  Tiempo de escaneo: {tiempo_escaneo:.2f} segundos")
+    print(f"   🚀 Velocidad: {contador_archivos/tiempo_escaneo:.1f} archivos/segundo")
+    
+    if contador_archivos == 0:
+        print("\n❌ No se encontraron archivos DWG")
+        return
+    
+    print("\n📊 Fase 2: Procesando información de archivos...")
+    
+    # Función para obtener información de cada archivo
+    def obtener_info_archivo(ruta):
+        try:
+            stat = os.stat(ruta)
+            nombre = os.path.basename(ruta)
+            carpeta = os.path.dirname(ruta)
+            
+            return {
+                'ARCHIVO': nombre,
+                'EXTENSION': os.path.splitext(nombre)[1].upper(),
+                'RUTA_COMPLETA': ruta,
+                'CARPETA': carpeta,
+                'CARPETA_PADRE': os.path.basename(carpeta) if carpeta else '',
+                'TAMAÑO_BYTES': stat.st_size,
+                'TAMAÑO_MB': round(stat.st_size / (1024 * 1024), 3),
+                'FECHA_MODIFICACION': datetime.fromtimestamp(stat.st_mtime),
+                'FECHA_CREACION': datetime.fromtimestamp(stat.st_ctime),
+                'ULTIMO_ACCESO': datetime.fromtimestamp(stat.st_atime),
+                'NIVEL_PROFUNDIDAD': len(os.path.relpath(carpeta, ruta_busqueda).split(os.sep)) if carpeta.startswith(ruta_busqueda) else 0
+            }
+        except Exception as e:
+            # Si hay error, devolver información básica
+            return {
+                'ARCHIVO': os.path.basename(ruta),
+                'EXTENSION': '.DWG',
+                'RUTA_COMPLETA': ruta,
+                'CARPETA': os.path.dirname(ruta),
+                'CARPETA_PADRE': '',
+                'TAMAÑO_BYTES': 0,
+                'TAMAÑO_MB': 0,
+                'FECHA_MODIFICACION': datetime.now(),
+                'FECHA_CREACION': datetime.now(),
+                'ULTIMO_ACCESO': datetime.now(),
+                'NIVEL_PROFUNDIDAD': 0
+            }
+    
+    # Procesar en paralelo para mayor velocidad
+    datos_procesados = []
+    
+    # Usar ThreadPool para procesamiento paralelo
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        futures = {executor.submit(obtener_info_archivo, dwg): dwg for dwg in todos_los_dwg}
+        
+        for i, future in enumerate(as_completed(futures), 1):
+            try:
+                datos = future.result()
+                datos_procesados.append(datos)
+            except:
+                pass
+            
+            # Mostrar progreso
+            if i % 500 == 0:
+                print(f"   🔄 Procesados {i:,}/{len(todos_los_dwg):,} archivos...")
+    
+    print("\n📊 Fase 3: Creando reporte Excel...")
+    
+    # Crear DataFrame
+    df = pd.DataFrame(datos_procesados)
+    
+    # Ordenar por carpeta y luego por archivo
+    df = df.sort_values(['CARPETA', 'ARCHIVO'])
+    
+    # Calcular estadísticas
+    tamano_total_mb = df['TAMAÑO_MB'].sum()
+    tamano_promedio_mb = df['TAMAÑO_MB'].mean()
+    
+    # Generar nombre de archivo con timestamp
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    nombre_excel = f"INVENTARIO_DWG_COMPLETO_{timestamp}.xlsx"
+    ruta_excel = os.path.join(ruta_salida, nombre_excel)
+    
+    # Crear Excel con múltiples hojas
+    with pd.ExcelWriter(ruta_excel, engine='openpyxl') as writer:
+        # Hoja 1: Lista completa
+        df.to_excel(writer, sheet_name='TODOS_LOS_DWG', index=False)
+        
+        # Hoja 2: Resumen por carpetas
+        resumen_carpetas = df.groupby('CARPETA_PADRE').agg({
+            'ARCHIVO': 'count',
+            'TAMAÑO_MB': 'sum'
+        }).round(2).sort_values('ARCHIVO', ascending=False)
+        resumen_carpetas.columns = ['CANTIDAD_ARCHIVOS', 'TAMAÑO_TOTAL_MB']
+        resumen_carpetas.to_excel(writer, sheet_name='RESUMEN_CARPETAS')
+        
+        # Hoja 3: Estadísticas
+        estadisticas = pd.DataFrame({
+            'METRICA': [
+                'Total archivos DWG',
+                'Total carpetas escaneadas',
+                'Tamaño total (MB)',
+                'Tamaño promedio por archivo (MB)',
+                'Archivo más grande (MB)',
+                'Archivo más pequeño (MB)',
+                'Fecha archivo más reciente',
+                'Fecha archivo más antiguo',
+                'Tiempo total de procesamiento (seg)'
+            ],
+            'VALOR': [
+                f"{contador_archivos:,}",
+                f"{contador_carpetas:,}",
+                f"{tamano_total_mb:,.2f}",
+                f"{tamano_promedio_mb:,.2f}",
+                f"{df['TAMAÑO_MB'].max():,.2f}",
+                f"{df['TAMAÑO_MB'].min():,.2f}",
+                df['FECHA_MODIFICACION'].max().strftime('%Y-%m-%d %H:%M:%S'),
+                df['FECHA_MODIFICACION'].min().strftime('%Y-%m-%d %H:%M:%S'),
+                f"{time.time() - inicio_total:.2f}"
+            ]
+        })
+        estadisticas.to_excel(writer, sheet_name='ESTADISTICAS', index=False)
+        
+        # Hoja 4: Top 100 archivos más grandes
+        top_100 = df.nlargest(100, 'TAMAÑO_MB')[['ARCHIVO', 'CARPETA', 'TAMAÑO_MB', 'FECHA_MODIFICACION']]
+        top_100.to_excel(writer, sheet_name='TOP_100_MAS_GRANDES', index=False)
+    
+    fin_total = time.time()
+    tiempo_total = fin_total - inicio_total
+    
+    print("\n" + "=" * 80)
+    print("🎉 INVENTARIO COMPLETADO CON ÉXITO")
+    print("=" * 80)
+    
+    # Mostrar resumen ejecutivo
+    print(f"\n📊 RESUMEN EJECUTIVO:")
+    print(f"   📂 Carpetas procesadas: {contador_carpetas:,}")
+    print(f"   📄 Archivos DWG totales: {contador_archivos:,}")
+    print(f"   💾 Tamaño total: {tamano_total_mb:,.2f} MB")
+    print(f"   📦 Tamaño promedio: {tamano_promedio_mb:,.2f} MB")
+    print(f"   ⏱️  Tiempo total: {tiempo_total:.2f} segundos")
+    print(f"   🚀 Velocidad promedio: {contador_archivos/tiempo_total:.1f} archivos/segundo")
+    
+    print(f"\n📁 ARCHIVO GENERADO:")
+    print(f"   📄 {ruta_excel}")
+    print(f"   📏 Tamaño aproximado: {os.path.getsize(ruta_excel)/(1024*1024):.2f} MB")
+    
+    # Mostrar distribución por tamaño
+    print(f"\n📈 DISTRIBUCIÓN POR TAMAÑO:")
+    bins = [0, 0.1, 1, 5, 10, 20, 50, 100, 500, 1000, float('inf')]
+    labels = ['<0.1', '0.1-1', '1-5', '5-10', '10-20', '20-50', '50-100', '100-500', '500-1000', '>1000']
+    
+    df['RANGO_MB'] = pd.cut(df['TAMAÑO_MB'], bins=bins, labels=labels, right=False)
+    distribucion = df['RANGO_MB'].value_counts().sort_index()
+    
+    for rango, cantidad in distribucion.items():
+        porcentaje = (cantidad / contador_archivos) * 100
+        print(f"   {rango:10} MB : {cantidad:6,} archivos ({porcentaje:.1f}%)")
+    
+    # Top 5 carpetas con más archivos
+    print(f"\n🏆 TOP 5 CARPETAS CON MÁS ARCHIVOS:")
+    top_carpetas = resumen_carpetas.head(5)
+    for carpeta, (cantidad, tamano) in top_carpetas.iterrows():
+        print(f"   {carpeta[:40]:40} : {cantidad:4} archivos ({tamano:,.1f} MB)")
+    
+    # Abrir el archivo Excel automáticamente
+    print(f"\n🔓 Abriendo archivo Excel...")
+    try:
+        os.startfile(ruta_excel)
+    except:
+        print(f"   📂 Abre manualmente: {ruta_excel}")
+    
+    print("\n" + "=" * 80)
+
+if __name__ == "__main__":
+    # CONFIGURACIÓN
+    RUTA_BUSQUEDA = r"\\atlas.etb.com.co\VP_DESARROLLO_DE_RED_Y_SERVICIOS\G_Aprovisionamiento_Servicios_Datos_Internet\D3910_Carr_Diseno_fo"
+    RUTA_SALIDA = r"C:\A_GS1_PROYECTOS"
+    
+    # Crear carpeta de salida si no existe
+    os.makedirs(RUTA_SALIDA, exist_ok=True)
+    
+    # Ejecutar búsqueda completa
+    obtener_todos_dwg(RUTA_BUSQUEDA, RUTA_SALIDA)
+    
+    # Mantener ventana abierta
+    input("\nPresiona Enter para salir...")

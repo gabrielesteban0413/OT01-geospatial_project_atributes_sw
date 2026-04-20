@@ -1,11 +1,32 @@
-# Crear .gitignore nuevo (este sí funciona en PowerShell)
-@"
 # EXCLUIR CARPETAS COMPLETAS
 data/
 docs/
 output/
+delete/
 src/quality/OBSOLETOS/
 src/private_collections/AttOthers/ACTUALIZACIONES/Cargues_ArcGIS/
+src/transformations/01_Scripts_Validacion/build/
+
+# EXCLUIR ARCHIVOS GRANDES DETECTADOS
+src/private_collections/AttOthers/ACTUALIZACIONES/Script_Borrado_placas/Borrar_placas.txt
+src/private_collections/AttOthers/ACTUALIZACIONES/Script_Construcciones/c_p1.txt
+src/private_collections/AttOthers/ACTUALIZACIONES/Script_Modificar_4campos_en_Lote/Script_Cambio_Uso_1/cambio_usos_nulos_sw - copia.txt
+src/private_collections/AttOthers/ACTUALIZACIONES/Script_Poblar_Uso_ACTUAL/usos_1.txt
+src/private_collections/02_mit_rme_port/edit/P00_MERGE2.txt
+config/db_ppal_sw.magik
+
+# EXCLUIR ARCHIVOS COMPILADOS Y TEMPORALES
+**/build/
+**/__pycache__/
+*.pyc
+*.pyo
+*.pkg
+*.pyz
+* - copia.*
+*~$
+*.tmp
+*.bak
+*.log
 
 # EXCLUIR ARCHIVOS GIS PESADOS
 *.gdb/
@@ -13,6 +34,8 @@ src/private_collections/AttOthers/ACTUALIZACIONES/Cargues_ArcGIS/
 *.shx
 *.dbf
 *.prj
+*.sbn
+*.sbx
 
 # EXCLUIR VIDEOS Y MULTIMEDIA
 *.mp4
@@ -20,6 +43,7 @@ src/private_collections/AttOthers/ACTUALIZACIONES/Cargues_ArcGIS/
 *.avi
 *.mov
 *.mkv
+*.mp3
 
 # EXCLUIR EJECUTABLES Y COMPRIMIDOS
 *.exe
@@ -35,17 +59,7 @@ src/private_collections/AttOthers/ACTUALIZACIONES/Cargues_ArcGIS/
 *.pptx
 *.xlsm
 
-# EXCLUIR BACKUPS
-*.bak
-*.tmp
-*~
-~$*
-
 # EXCLUIR SISTEMA
 desktop.ini
 .DS_Store
 Thumbs.db
-"@ | Out-File -FilePath .gitignore -Encoding utf8
-
-# Verificar que se creó
-cat .gitignore
