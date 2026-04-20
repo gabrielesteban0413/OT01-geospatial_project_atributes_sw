@@ -1,0 +1,209 @@
+_block
+
+	ruta_fuente <<"N:\RECURSOS_UTILIDADES\PROCESOS\SCRIPTS_ACTUALIZACIONES\Script_Poblar_Distancia_Address\Distancias_ID.txt"
+	ruta_logs <<"N:\RECURSOS_UTILIDADES\PROCESOS\SCRIPTS_ACTUALIZACIONES\Script_Poblar_Distancia_Address"
+	
+	ruta_exitosos<<ruta_logs+"\exitosos_log.txt"
+	ruta_fallidos_general<<ruta_logs+"\fallidos_general_log.txt"
+	ruta_fallidos_valor_tipo_direccion_incorrecto<<ruta_logs+"\fallidos_x_tipo_direc_log.txt"
+	ruta_fallidos_municipio<<ruta_logs+"\fallidos_municipio.txt"
+	vista << gis_program_manager.cached_dataset(:gis)
+	vista.checkpoint("Act. Address "+date_time.now().write_string)
+	ads << vista.collection(:address)
+	municipios<<gis_program_manager.cached_dataset(:ds_cartografia).collection(:municipio)
+	tipos_validos << rope.new_with("A","B","C","D","E","F","G","H","I","J","P","R","S","W","X","NA","Z","AE","BE","CE","DE","EE","FE","GE","HE","IE","JE","KE","LE","ME","NE","OE","PE","XE")
+	address_exitosos<<rope.new()
+	linea_mal_construida<<rope.new()
+	direcciones_inexistentes_en_sw<<rope.new()
+	sin_tipo_direccion<<rope.new()
+	valores_tipo_incorrectos<<rope.new()
+	direcciones_fallo_update<<rope.new()
+	address_error<<rope.new()
+	sin_municipio<<rope.new()
+	w("Tamaño address: ", ads.size)
+	archivo_fuente << external_text_input_stream.new(ruta_fuente)
+	contador << 0
+	_for una_linea _over 1.upto(100000000)
+	_loop 
+		_try 
+			linea << archivo_fuente.get_line()
+			_if linea _is _unset _then
+				show("LINEAS TOTALES EN EL ARCHIVO FUENTE", contador)
+				archivo_fuente.close()
+				_leave
+			_endif
+			contador +<<1
+			_if contador _mod 50 = 0
+			_then
+				show("Analizadas ", contador, " direcciones a ", date_time.now().write_string)
+			_endif
+			texto << linea.write_string.split_by("&&&", _true )
+			_if texto.size <> 3
+			_then
+				linea_mal_construida.add(linea)
+				_continue 
+			_endif
+			#nombre_direccion << texto[1].write_string
+			id_direccion << texto[1].as_number()
+			tipo << texto[2].write_string
+			muni<< texto[3].write_string
+			un_muni<<municipios.select(predicate.eq(:muncodigo, muni)).an_element()
+			_if un_muni _is _unset
+			_then
+				sin_municipio.add(linea)
+				_continue
+			_endif
+			#posibles_direcciones<< ads.select(predicate.eq(:name, nombre_direccion))
+			posibles_direcciones<< ads.select(predicate.eq(:id, id_direccion))
+			una_direcc<<_unset
+			_if posibles_direcciones.size > 0
+			_then
+				_for dir _over posibles_direcciones.elements()
+				_loop
+					pred<<predicate.interacts(:limite, {dir.location})
+					un_muni_segundo<<municipios.select(pred).an_element()
+					_if un_muni_segundo _isnt _unset _andif un_muni_segundo.id = un_muni.id
+					_then
+						una_direcc<<dir
+						_leave 
+					_endif 
+				_endloop
+			_endif 
+			_if una_direcc _is _unset
+			_then
+				direcciones_inexistentes_en_sw.add(linea)
+				_continue
+			_endif
+			_if tipo _is _unset _orif tipo = ""
+			_then
+				sin_tipo_direccion.add(linea)
+				_continue 
+			_endif 
+			_if _not (tipos_validos.eq_includes?(tipo))
+			_then
+				valores_tipo_incorrectos.add(linea)
+				_continue 
+			_endif
+			_if tipo = "NA"
+			_then
+				tipo << _unset 				
+			_endif 
+			_try
+				#show(tipo)
+				#una_direcc.tipo_distancia << tipo #.write_string
+				
+				pl_free << property_list.new_with(:tipo_distancia,tipo)
+				r << record_transaction.new_update( una_direcc,pl_free).run()
+				
+				address_exitosos.add(linea)
+			_when error
+				direcciones_fallo_update.add(linea)
+				_continue 
+			_endtry
+		_when error
+			w("ERROR INESPERADO EN LA EJECUCIÓN.")
+			archivo_fuente.close()
+		_endtry 
+	_endloop
+	archivo_fuente.close()
+	vista.commit()
+	_if address_exitosos.size <> 0
+	_then
+		archivo_exitosos << external_text_output_stream.new(ruta_exitosos)
+		archivo_exitosos.write("LINEAS CORRECTAMENTE ACTUALIZADAS.")
+		archivo_exitosos.newline()
+		archivo_exitosos.write("_______________________________________________________________")
+		archivo_exitosos.newline()
+		archivo_exitosos.write("TOTAL: ", address_exitosos.size)
+		archivo_exitosos.newline()
+		archivo_exitosos.newline()
+		_for exito _over address_exitosos.elements()
+		_loop
+			archivo_exitosos.write(exito.write_string)
+			archivo_exitosos.newline()
+		_endloop
+		archivo_exitosos.close()
+	_endif
+	_if linea_mal_construida.size+direcciones_inexistentes_en_sw.size+sin_tipo_direccion.size+direcciones_fallo_update.size <> 0
+	_then
+		archivo_fallidos_general << external_text_output_stream.new(ruta_fallidos_general)
+		_if direcciones_fallo_update.size <>0
+		_then
+			archivo_fallidos_general.write("FALLO EN LA ACTUALIZACION.")
+			archivo_fallidos_general.newline()
+			archivo_fallidos_general.write("________________________________________________________________________________________")
+			archivo_fallidos_general.newline()
+			archivo_fallidos_general.write("TOTAL: ", direcciones_fallo_update.size)
+			archivo_fallidos_general.newline()
+			archivo_fallidos_general.newline()
+			_for fallo_update _over direcciones_fallo_update.elements()
+			_loop
+				archivo_fallidos_general.write(fallo_update.write_string)
+				archivo_fallidos_general.newline()
+			_endloop
+		_endif
+		archivo_fallidos_general.newline()
+		_for direccion _over linea_mal_construida.elements()
+		_loop 
+			address_error.add(direccion)
+		_endloop
+		_for una_direccion _over direcciones_inexistentes_en_sw.elements()
+		_loop
+			address_error.add(una_direccion)
+		_endloop
+		_for la_direccion _over sin_tipo_direccion.elements()
+		_loop
+			address_error.add(la_direccion)
+		_endloop 
+		archivo_fallidos_general.write("LINEAS FALLIDAS")
+		archivo_fallidos_general.newline()
+		archivo_fallidos_general.write("________________________________________________________________________________________")
+		archivo_fallidos_general.newline()
+		archivo_fallidos_general.write("TOTAL: ", linea_mal_construida.size + direcciones_inexistentes_en_sw.size + sin_tipo_direccion.size)
+		archivo_fallidos_general.newline()
+		archivo_fallidos_general.newline()
+		_for fallo_general _over address_error.elements()
+		_loop
+			archivo_fallidos_general.write(fallo_general.write_string)
+			archivo_fallidos_general.newline()
+		_endloop
+		archivo_fallidos_general.close()
+	_endif
+	_if valores_tipo_incorrectos.size<>0
+	_then
+		archivo_fallidos_x_tipo_direcc << external_text_output_stream.new(ruta_fallidos_valor_tipo_direccion_incorrecto)
+		archivo_fallidos_x_tipo_direcc.write("VALOR NO ADMITIDO PARA EL TIPO DE DIRECCION")
+		archivo_fallidos_x_tipo_direcc.newline()
+		archivo_fallidos_x_tipo_direcc.write("________________________________________________________________________________________")
+		archivo_fallidos_x_tipo_direcc.newline()
+		archivo_fallidos_x_tipo_direcc.write("TOTAL: ", valores_tipo_incorrectos.size)
+		archivo_fallidos_x_tipo_direcc.newline()
+		archivo_fallidos_x_tipo_direcc.newline()
+		_for tipo_incorrecto _over valores_tipo_incorrectos.elements()
+		_loop
+			archivo_fallidos_x_tipo_direcc.write(tipo_incorrecto.write_string)
+			archivo_fallidos_x_tipo_direcc.newline()
+		_endloop
+		archivo_fallidos_x_tipo_direcc.newline()
+		archivo_fallidos_x_tipo_direcc.close()
+	_endif
+	_if sin_municipio.size <>0
+	_then
+		archivo_fallidos_x_muni << external_text_output_stream.new(ruta_fallidos_municipio)
+		archivo_fallidos_x_muni.write("SIN VALOR PARA EL CODIGO DE MUNICIPIO o CODIGO DE MUNICIPIO INEXISTENTE")
+		archivo_fallidos_x_muni.newline()
+		archivo_fallidos_x_muni.write("________________________________________________________________________________________")
+		archivo_fallidos_x_muni.newline()
+		archivo_fallidos_x_muni.write("TOTAL", sin_municipio.size)
+		archivo_fallidos_x_muni.newline()
+		archivo_fallidos_x_muni.newline()
+		_for no_muni _over sin_municipio.elements()
+		_loop
+			archivo_fallidos_x_muni.write(no_muni.write_string)
+			archivo_fallidos_x_muni.newline()
+		_endloop 
+		archivo_fallidos_x_muni.newline()
+		archivo_fallidos_x_muni.close()
+	_endif 
+_endblock 
+$

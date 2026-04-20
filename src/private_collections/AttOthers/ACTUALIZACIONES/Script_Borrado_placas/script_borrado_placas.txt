@@ -1,0 +1,42 @@
+_block
+	
+	
+	archivo << external_text_input_stream.new("N:\RECURSOS_UTILIDADES\PROCESOS\SCRIPTS_ACTUALIZACIONES\Script_Borrado_placas\Borrar_Placas.txt")
+	no_existe_placa << rope.new()
+	contador << 0
+	direcciones_no_encontradas << rope.new()
+	w("Comienza el borrado de placas")
+	w("Número de placas antes de borrado: ", placa_domicilio.size)
+	_for una_linea _over 1.upto(100000000)
+	_loop
+		contador +<<1
+		linea << archivo.get_line()
+		_if contador _mod 100 = 0
+		_then
+			w(contador)
+		_endif 
+
+		_if linea _is _unset _then
+			w("contador lineas", contador)
+			_leave
+		_endif
+
+		id << linea.write_string
+		mio << placa_domicilio.at(id)
+		_if mio _isnt _unset
+		_then 
+			el_id << mio.id
+		_else
+			no_existe_lote.add(id)
+			_continue 
+		_endif
+
+		placa_a_borrar  << placa_domicilio.at(el_id.as_number())
+		_if placa_a_borrar _isnt  _unset _then 
+			placa_a_borrar.delete()
+		_else
+			w("Predios extraños: ", el_id)
+		_endif 
+_endloop
+_endblock 
+$	

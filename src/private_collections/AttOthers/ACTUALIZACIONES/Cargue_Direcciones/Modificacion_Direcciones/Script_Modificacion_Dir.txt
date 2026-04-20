@@ -1,0 +1,60 @@
+_block
+
+	vista << gis_program_manager.cached_dataset(:gis)
+	ads << vista.collection(:address)
+	lotes << gis_program_manager.cached_dataset(:ds_cartografia).collection(:lote)
+	detalles << gis_program_manager.cached_dataset(:ds_cartografia).collection(:detalle_direccion)
+	show("Tamaño lotes: ", lotes.size)
+	show("Tamaño address: ", ads.size)
+	_dynamic !current_world! << vista.world
+	no_existe_address << rope.new()
+	contador << 0
+	predios_actualizados << 0
+	detalle_cambiado<< rope.new()
+	no_Existe_detalle<<rope.new()
+	
+	archivo << external_text_input_stream.new("N:\RECURSOS_UTILIDADES\PROCESOS\SCRIPTS_ACTUALIZACIONES\Cargue_Direcciones\Modificacion_Direcciones\MODIF DIRECCIONES EN SMALLW_A_X_B.txt")
+	cambiadas << rope.new()
+	contador << 0
+
+	_for una_linea _over 1.upto(100000000)
+	_loop
+
+		linea << archivo.get_line()
+		contador +<<1
+		_if linea _is _unset _then
+			show("contador lineas", contador)
+			archivo.close()
+			_leave
+		_endif
+
+		_if contador _mod 1000 = 0
+		_then
+			show(contador)
+		_endif
+		
+		texto << linea.write_string.split_by("&", _true )
+		direcc_viej << texto[1].write_string
+		direcc_nova << texto[2].write_string
+		
+		la_direcc << ads.select(predicate.eq(:name, direcc_viej)).an_element()
+		el_detalle << detalles.select(predicate.eq(:direccion, direcc_viej)).an_element()
+		_if la_direcc _isnt _unset
+		_then
+			record_transaction.new_update(la_direcc, property_list.new_with(
+									 :name, direcc_nova)).run()
+			cambiadas.add(la_direcc)
+		_else
+			no_Existe_address.add(direcc_viej)
+		_endif
+		_if el_detalle _isnt _unset
+		_then
+			record_transaction.new_update(el_detalle, property_list.new_with(
+									  :direccion, direcc_nova)).run()
+			detalle_cambiado.add(el_detalle)
+		_else
+			no_Existe_detalle.add(direcc_viej)
+		_endif 
+	_endloop 
+_endblock 
+$

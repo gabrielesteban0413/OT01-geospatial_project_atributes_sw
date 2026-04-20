@@ -1,0 +1,259 @@
+
+o << case_object.new_from_archive(
+                                  {469445,
+                                  "sheath_splice",
+                                  write_string("Sheath Splice"),
+                                  "sheath_splice",
+                                  _unset,{0,0,0},0} ,-262000.000000, 169000.000000)
+o.set_trigger(:insert,"insert_trigger()")
+o.set_trigger(:update,"update_trigger()")
+o.set_trigger(:delete,"delete_trigger()")
+$
+
+an_f << o.add_field("id", "Id", :physical)
+an_f.set_key_status_to(_true)
+an_f.archive_set_field_type_to(:|sys_id|,_unset)
+an_f.print_width << 10
+an_f.mandatory? << True
+an_f.set_generator_method_name("make_sysid()")
+
+
+an_f << o.add_field("account_code", "Account Code", :physical)
+an_f.archive_set_field_type_to(:|ds_char16canon_vec|,7)
+an_f.print_width << 7
+an_f.mandatory? << False
+an_f.archive_unset_value << ""
+
+
+an_f << o.add_field("name", "Name", :physical)
+an_f.archive_set_field_type_to(:|ds_char16canon_vec|,20)
+an_f.print_width << 20
+an_f.archive_default_value << "Sheath Splice"
+
+
+an_f << o.add_field("style_subcode", "Style Subcode", :physical)
+an_f.archive_set_field_type_to(:|ds_char16|,_unset)
+an_f.print_width << 10
+an_f.mandatory? << False
+an_f.archive_unset_value << %Z
+
+
+an_f << o.add_field("construction_status", "Construction Status", :physical)
+an_f.archive_set_field_type_to(:|ds_char16canon_vec|,2)
+an_f.print_width << 2
+an_f.mandatory? << True
+an_f.archive_default_value << "In Service"
+an_f.set_trigger(:update, "update_construction_status()")
+
+
+an_f << o.add_field("splice_type", "Splice Type", :physical)
+an_f.archive_set_field_type_to(:|ds_char16canon_vec|,7)
+an_f.print_width << 7
+an_f.mandatory? << True
+an_f.archive_default_value << "non breaking"
+an_f.set_trigger(:update, "update_construction_status()")
+
+
+an_f << o.add_field("spec_id", "Spec Id", :physical)
+an_f.archive_set_field_type_to(:|gen_id|,_unset)
+an_f.print_width << 10
+an_f.set_trigger(:update, "spec_id_update_trigger()")
+
+
+an_f << o.add_field("installed_cost", "Installed Cost", :physical)
+an_f.archive_set_field_type_to(:|ds_float|,_unset)
+an_f.print_width << 10
+an_f.mandatory? << False
+an_f.archive_unset_value << 0.0000000000000
+an_f.archive_stored_unit << "base_currency"
+
+
+an_f << o.add_field("splice_method", "Method", :physical)
+an_f.archive_set_field_type_to(:|ds_uint|,_unset)
+an_f.print_width << 4
+
+
+$
+
+an_f << o.add_field("num_available_mount_pos", "Available Mounting Positions", :logical)
+an_f.archive_set_field_type_to(:|ds_char16_vec|,64)
+an_f.print_width << 32
+an_f.mandatory? << False
+an_f.archive_unset_value << ""
+
+
+an_f << o.add_field("location", "Location", :geometric)
+an_f.mandatory? << False
+an_f.set_trigger(:attach, "attach_location()")
+an_f.set_trigger(:detach, "detach_location()")
+an_f.set_trigger(:update, "update_location()")
+an_f.priority << 4
+an_f.set_geometry_type(:simple_point)
+
+
+an_f << o.add_field("break_location", "Break Location", :geometric)
+an_f.set_trigger(:attach, "attach_location()")
+an_f.set_trigger(:detach, "detach_location()")
+an_f.set_trigger(:update, "update_location()")
+an_f.priority << 7
+an_f.set_geometry_type(:point)
+an_f.archive_manifold << "hfc_network"
+
+
+an_f << o.add_field("no_break_location", "No Break Location", :geometric)
+an_f.mandatory? << False
+an_f.set_trigger(:attach, "attach_location()")
+an_f.set_trigger(:detach, "detach_location()")
+an_f.set_trigger(:update, "update_location()")
+an_f.priority << 7
+an_f.set_geometry_type(:point)
+an_f.archive_manifold << "hfc_network"
+
+
+an_f << o.add_field("virtual_location", "Virtual Location", :geometric)
+an_f.set_trigger(:attach, "attach_location()")
+an_f.set_trigger(:detach, "detach_location()")
+an_f.set_trigger(:update, "update_location()")
+an_f.priority << 7
+an_f.set_geometry_type(:point)
+an_f.archive_manifold << "hfc_network"
+
+
+an_f << o.add_field("annotation_1", "Annotation 1", :geometric)
+an_f.priority << 5
+an_f.set_geometry_type(:text)
+an_f.set_text_method_name("annotation_1_text")
+
+
+an_f << o.add_field("symbol_location", "Symbol Location", :geometric)
+an_f.priority << 4
+an_f.set_geometry_type(:simple_point)
+
+
+an_f << o.add_field("symbol_annotation", "Symbol Annotation", :geometric)
+an_f.priority << 5
+an_f.set_geometry_type(:text)
+an_f.set_text_method_name("symbol_annotation_text")
+
+
+an_f << o.add_field("mit_sheath_with_loc_pins", "Mit Sheath With Loc Pins", :join)
+an_f.cascade? << False
+
+
+an_f << o.add_field("sheath_with_loc_terminals", "Sheath With Loc Terminals", :join)
+
+
+$
+
+an_f << o.add_field("optical_splitters", "Optical Splitters", :join)
+an_f.cascade? << True
+an_f.structure_type << :sub
+
+
+an_f << o.add_field("mit_splice_trays", "Mit Splice Trays", :join)
+an_f.cascade? << True
+an_f.structure_type << :sub
+
+
+an_f << o.add_field("splice_modules", "Splice Modules", :join)
+an_f.cascade? << True
+an_f.structure_type << :sub
+
+
+an_f << o.get_field(:location)
+map_rec << an_f.archive_mapping({469462, "location_mapping()", False,0 })
+map_rec.archive_fields({:location,
+                        :break_location,
+                        :no_break_location,
+                        :virtual_location})
+$
+
+o << case_object.new_from_archive(
+                                  {41196,
+                                  "optical_splitter_pct_loss",
+                                  write_string("Optical Splitter Pct Loss"),
+                                  "optical_splitter_pct_loss",
+                                  _unset,{0,0,0},0} ,-27369.0000000, 91518.0000000)
+$
+
+an_f << o.add_field("wavelength_id", "Wavelength Id", :physical)
+an_f.set_key_status_to(_true)
+an_f.archive_set_field_type_to(:|ds_uint|,_unset)
+an_f.print_width << 10
+an_f.mandatory? << True
+
+
+an_f << o.add_field("optical_splitter_spec_id", "Optical Splitter Spec Id", :physical)
+an_f.set_key_status_to(_true)
+an_f.archive_set_field_type_to(:|ds_uint|,_unset)
+an_f.print_width << 10
+an_f.mandatory? << True
+
+
+an_f << o.add_field("loss_pct", "Loss Pct", :physical)
+an_f.set_key_status_to(_true)
+an_f.archive_set_field_type_to(:|ds_double|,_unset)
+an_f.print_width << 10
+an_f.mandatory? << True
+an_f.archive_stored_unit << "percent"
+
+
+an_f << o.add_field("loss", "Loss", :physical)
+an_f.archive_set_field_type_to(:|ds_double|,_unset)
+an_f.print_width << 10
+an_f.archive_stored_unit << "db"
+
+
+$
+
+o << case_object.new_from_archive(
+                                  {469474,
+                                  "generic_soft_join",
+                                  write_string("Generic Soft Join"),
+                                  "generic_soft_join",
+                                  _unset,{0,0,0},0} ,550000.000000, 237500.000000)
+s << internal_text_output_stream.new(100)
+s.write("A simple table to relate any two records together. Stores a ", newline_char)
+s.write("pointer to a parent and child object.", newline_char)
+s.write(newline_char)
+s.write(newline_char)
+o.text << s.string
+$
+
+an_f << o.add_field("id", "Id", :physical)
+an_f.set_key_status_to(_true)
+an_f.archive_set_field_type_to(:|sys_id|,_unset)
+an_f.print_width << 10
+an_f.mandatory? << True
+an_f.set_generator_method_name("make_sysid()")
+
+
+an_f << o.add_field("parent_tid", "Parent TID", :physical)
+an_f.text << write_string("This field is a table identifier for a collection. See the record ",newline_char,
+"exemplar and manager for how the mapping is defined. ")
+an_f.archive_set_field_type_to(:|ds_uint|,_unset)
+an_f.print_width << 5
+
+
+an_f << o.add_field("parent_id", "Parent Id", :physical)
+an_f.text << write_string("This field is the system id from a parent table. ")
+an_f.archive_set_field_type_to(:|sys_id|,_unset)
+an_f.print_width << 10
+
+
+an_f << o.add_field("child_tid", "Child TID", :physical)
+an_f.text << write_string("This field is a table identifier for a collection. See the record ",newline_char,
+"exemplar and manager for how the mapping is defined. ")
+an_f.archive_set_field_type_to(:|ds_uint|,_unset)
+an_f.print_width << 5
+an_f.mandatory? << True
+
+
+an_f << o.add_field("child_id", "Child Id", :physical)
+an_f.text << write_string("This field is the system id from a parent table. ")
+an_f.archive_set_field_type_to(:|sys_id|,_unset)
+an_f.print_width << 10
+an_f.mandatory? << True
+
+
+$
