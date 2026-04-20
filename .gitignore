@@ -1,0 +1,51 @@
+# Crear .gitignore nuevo (este sí funciona en PowerShell)
+@"
+# EXCLUIR CARPETAS COMPLETAS
+data/
+docs/
+output/
+src/quality/OBSOLETOS/
+src/private_collections/AttOthers/ACTUALIZACIONES/Cargues_ArcGIS/
+
+# EXCLUIR ARCHIVOS GIS PESADOS
+*.gdb/
+*.shp
+*.shx
+*.dbf
+*.prj
+
+# EXCLUIR VIDEOS Y MULTIMEDIA
+*.mp4
+*.webm
+*.avi
+*.mov
+*.mkv
+
+# EXCLUIR EJECUTABLES Y COMPRIMIDOS
+*.exe
+*.msi
+*.zip
+*.rar
+*.7z
+
+# EXCLUIR DOCUMENTOS PESADOS
+*.pdf
+*.xlsx
+*.docx
+*.pptx
+*.xlsm
+
+# EXCLUIR BACKUPS
+*.bak
+*.tmp
+*~
+~$*
+
+# EXCLUIR SISTEMA
+desktop.ini
+.DS_Store
+Thumbs.db
+"@ | Out-File -FilePath .gitignore -Encoding utf8
+
+# Verificar que se creó
+cat .gitignore
