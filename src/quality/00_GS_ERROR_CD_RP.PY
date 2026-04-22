@@ -259,7 +259,7 @@ JERARQUIA_EMPALME = {
 
 JERARQUIA_EDIFICIO = {
     1: {"campo": "Id", "errores": []},
-    2: {"campo": "Nombre", "errores": ["NOMBRE (Corregir a","NOMBRE (Debe estar en MAYÚSCULAS)","NOMBRE (Valor Inválido)"]},
+    2: {"campo": "Nombre", "errores": ["NOMBRE (Corregir a","NOMBRE (Debe estar en MAYÚSCULAS)","NOMBRE (Valor Inválido)","NOMBRE (Sufijo con espacios)"]},
     3: {"campo": "Tipo", "errores": ["TIPO DE GRUPO"]},
     4: {"campo": "Estado de Construcción", "errores": ["ESTADO"]},
     5: {"campo": "Categoria", "errores": ["CATEGORIA (AAA)"]},
@@ -292,7 +292,7 @@ JERARQUIA_PORT = {
     13: {"campo": "Equipo Central", "errores": ["EQUIPO CENTRAL VACIO"]},
     14: {"campo": "Puerto Central", "errores": ["PUERTO CENTRAL VACIO"]},
     15: {"campo": "Tipo Servicio", "errores": ["TIPO SERVICIO VACIO"]},
-    16: {"campo": "Nombre Cliente", "errores": ["NOMBRE CLIENTE (Valor Inválido)","NOMBRE CLIENTE (Debe estar en MAYÚSCULAS)","NOMBRE (Corregir a","NOMBRE CLIENTE VACIO","NOMBRE CLIENTE INCONSISTENTE"]},
+    16: {"campo": "Nombre Cliente", "errores": ["NOMBRE CLIENTE (Valor Inválido)","NOMBRE CLIENTE (Debe estar en MAYÚSCULAS)","NOMBRE (Corregir a","NOMBRE CLIENTE VACIO","NOMBRE CLIENTE INCONSISTENTE","NOMBRE CLIENTE (Sufijo con espacios)"]},
     17: {"campo": "Direccion Cliente Id", "errores": ["DIRECCION CLIENTE ID VACIO"]},
     18: {"campo": "Comentarios", "errores": []},
     19: {"campo": "Connected?", "errores": ["CONNECTED INVALIDO"]},
@@ -308,7 +308,7 @@ JERARQUIA_SHELF = {
     2: {"campo": "Description", "errores": ["DESCRIPTION VACIO","DESCRIPTION INVALIDA","DESCRIPTION CON ESPACIOS","DESCRIPTION INVALIDA","DESCRIPTION INVALIDA"]},  
     3: {"campo": "Construction Status", "errores": ["CONSTRUCTION STATUS INVALIDO"]},
     4: {"campo": "Tipo", "errores": ["TIPO INVALIDO"]},
-    5: {"campo": "Fabricante", "errores": ["FABRICANTE VACIO"]},
+    5: {"campo": "Fabricante", "errores": []},
     6: {"campo": "Tecnologia", "errores": ["TECNOLOGIA VACIO"]},
     7: {"campo": "Direccion Ip", "errores": ["DIRECCION IP INVALIDA"]},
     8: {"campo": "Nivel En Bastidor", "errores": ["NIVEL BASTIDOR INVALIDO"]},
@@ -347,6 +347,27 @@ RE_NUMERO_SALON = re.compile(r'^OF \d+$')
 RE_DESCRIPCION_BASTIDOR = re.compile(r'^BASTIDOR CLIENTE (\d+)$')
 RE_DESCRIPCION_DEMARCADOR = re.compile(r'^DEMARCADOR CLIENTE (\d+)$')
 RE_IPV4 = re.compile(r'^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})(/\d{1,2})?$')
+
+def validar_sufijos_pegados(nombre):
+    if not nombre or pd.isna(nombre):
+        return True, None, None
+    nombre_str = str(nombre).strip()
+    nombre_upper = nombre_str.upper()
+    patrones_sufijos = [
+        (r'\s+S\s+A\s+S?$', 'SA'),
+        (r'\s+L\s+T\s+D\s+A$', 'LTDA'),
+        (r'\s+L\s+T\s+D$', 'LTD'),
+        (r'\s+I\s+N\s+C$', 'INC'),
+        (r'\s+C\s+O\s+R\s+P$', 'CORP'),
+        (r'\s+C\s+I\s+E$', 'CIE'),
+        (r'\s+E\s+U$', 'EU'),
+        (r'\s+N\s+I\s+T\s*\d*$', 'NIT')
+    ]
+    for patron, sustituto in patrones_sufijos:
+        if re.search(patron, nombre_upper):
+            nombre_sin_espacios = re.sub(r'\s+', '', nombre_upper)
+            return False, f"{JERARQUIA_EDIFICIO[2]['errores'][3]} | Debe estar pegado: '{nombre_sin_espacios}'", nombre_sin_espacios
+    return True, None, None
 
 class ErrorOrganizer:
     def __init__(self):
@@ -466,125 +487,6 @@ def obtener_columnas_openpyxl(ws):
         for i, c in enumerate(ws[1], start=1)
         if c.value
     }
-
-def cargar_contratistas_asphia(ruta_asphia):
-    try:
-        if not ruta_asphia.exists():
-            return {}
-        df = pd.read_excel(ruta_asphia, sheet_name=0, engine='openpyxl', dtype=str)
-        
-        col_cambio = None
-        col_contratista = None
-        col_actividad = None
-        col_fecha = None
-        for col in df.columns:
-            col_lower = str(col).lower()
-            if any(kw in col_lower for kw in ['cambio', 'oc', 'codigo', 'n°', 'numero', 'orden']):
-                if not col_cambio:
-                    col_cambio = col
-            if any(kw in col_lower for kw in ['contratista', 'cuadrilla', 'proveedor', 'empresa', 'responsable']):
-                if not col_contratista:
-                    col_contratista = col
-            if any(kw in col_lower for kw in ['actividad', 'tipo actividad', 'descripción actividad']):
-                if not col_actividad:
-                    col_actividad = col
-            if any(kw in col_lower for kw in ['fecha', 'date', 'fch']):
-                if not col_fecha:
-                    col_fecha = col
-        
-        if not col_cambio or not col_contratista:
-            return {}
-        
-        registros_por_cambio = defaultdict(list)
-        
-        for idx, row in df.iterrows():
-            cambio_val = row[col_cambio]
-            if pd.isna(cambio_val) or str(cambio_val).strip() == "":
-                continue
-            clave = str(cambio_val).strip()
-            
-            contratista_val = row[col_contratista]
-            if pd.isna(contratista_val) or str(contratista_val).strip() == "":
-                valor = "Sin Informacion"
-            else:
-                valor = str(contratista_val).strip()
-            valor_normalizado = normalizar_nombre_contratista(valor)
-            
-            es_instalacion = False
-            if col_actividad is not None:
-                actividad_val = row[col_actividad]
-                if not pd.isna(actividad_val):
-                    actividad_str = str(actividad_val).strip().lower()
-                    if re.search(r'instal|intal', actividad_str):
-                        es_instalacion = True
-            
-            fecha = None
-            if col_fecha is not None:
-                fecha_val = row[col_fecha]
-                if not pd.isna(fecha_val):
-                    try:
-                        for fmt in ('%Y-%m-%d', '%d/%m/%Y', '%m/%d/%Y', '%Y%m%d', '%d-%m-%Y', '%Y/%m/%d'):
-                            try:
-                                fecha = datetime.strptime(str(fecha_val).strip(), fmt)
-                                break
-                            except ValueError:
-                                continue
-                    except Exception:
-                        pass
-            
-            registros_por_cambio[clave].append({
-                'contratista': valor_normalizado,
-                'es_instalacion': es_instalacion,
-                'fecha': fecha,
-                'indice': idx
-            })
-        
-        resultado = {}
-        for clave, registros in registros_por_cambio.items():
-            if len(registros) == 1:
-                mejor = registros[0]
-            else:
-                con_fecha = [r for r in registros if r['fecha'] is not None]
-                if con_fecha:
-                    mejor = max(con_fecha, key=lambda r: r['fecha'])
-                else:
-                    mejor = max(registros, key=lambda r: r['indice'])
-            
-            resultado[clave] = (mejor['contratista'], mejor['es_instalacion'])
-            
-            clave_sin_espacios = clave.replace(' ', '')
-            if clave_sin_espacios != clave:
-                resultado[clave_sin_espacios] = (mejor['contratista'], mejor['es_instalacion'])
-            clave_upper = clave.upper()
-            if clave_upper != clave:
-                resultado[clave_upper] = (mejor['contratista'], mejor['es_instalacion'])
-            clave_sin_guion = clave.replace('-', '')
-            if clave_sin_guion != clave:
-                resultado[clave_sin_guion] = (mejor['contratista'], mejor['es_instalacion'])
-        
-        return resultado
-    except Exception as e:
-        return {}
-
-def normalizar_nombre_contratista(nombre):
-    if pd.isna(nombre) or str(nombre).strip() == "":
-        return "Sin Informacion"
-    nombre_str = str(nombre).strip()
-    mapeos = { 
-        "Cobra": "COBRA", "cobra": "COBRA", "COBRA S.A.": "COBRA", "COBRA SA": "COBRA",
-        "Colvatel": "COLVATEL", "colvatel": "COLVATEL", "COLVATEL S.A.": "COLVATEL", "COLVATEL SA": "COLVATEL",
-        "Redes y Edificaciones": "R&E", "Redes & Edificaciones": "R&E", "R&E": "R&E",
-        "Fibernet": "FIBERNET", "fibernet": "FIBERNET",
-        "0": "Sin Informacion", "nan": "Sin Informacion", "NaN": "Sin Informacion", 
-        "None": "Sin Informacion", "DECIBELES": "Sin Informacion"
-    }
-    if nombre_str in mapeos:
-        return mapeos[nombre_str]
-    nombre_lower = nombre_str.lower()
-    for clave, valor in mapeos.items():
-        if clave.lower() in nombre_lower or nombre_lower in clave.lower():
-            return valor
-    return nombre_str.upper()
 
 def cargar_om_openpyxl(ruta_macro, hoja="OM"):
     ids_om, exc_ed = set(), set()
@@ -1023,27 +925,33 @@ def validar_nombre_cliente_con_edificio(nombre_cliente, building_id, physical_st
     nombre_original = str(nombre_cliente).strip()
     nombre_upper = nombre_original.upper()
     
+    valido_sufijos, msg_sufijos, nombre_corregido = validar_sufijos_pegados(nombre_original)
+    if not valido_sufijos:
+        return False, nombre_original, msg_sufijos, nombre_corregido
+    
     if building_id and building_id in nombres_edificios:
         nombre_edificio = nombres_edificios[building_id]
-        if nombre_upper != nombre_edificio:
-            nombre_cliente_norm = normalizar_nombre_empresa(nombre_upper)
-            nombre_edificio_norm = normalizar_nombre_empresa(nombre_edificio)
-            if nombre_cliente_norm == nombre_edificio_norm:
-                return False, nombre_original, f"NOMBRE CLIENTE: {nombre_edificio}", nombre_edificio
-            else:
-                return False, nombre_original, f"NOMBRE CLIENTE |{nombre_edificio}", nombre_edificio
-        else:
+        nombre_cliente_upper = nombre_upper
+        nombre_edificio_upper = nombre_edificio.upper()
+        
+        if nombre_cliente_upper in nombre_edificio_upper:
             return True, None, None, None
+        
+        if nombre_edificio_upper in nombre_cliente_upper:
+            return True, None, None, None
+        
+        return False, nombre_original, f"NOMBRE CLIENTE INCONSISTENTE | Esperado (contiene o está contenido en): '{nombre_edificio}'", nombre_edificio
     
     nombre_cliente_norm = normalizar_nombre_empresa(nombre_upper)
     
     if nombre_cliente_norm in nombres_normalizados:
         edificios_encontrados = list(nombres_normalizados[nombre_cliente_norm])
         nombre_edificio = nombres_edificios.get(edificios_encontrados[0], "")
-        if nombre_edificio and nombre_upper != nombre_edificio:
-            return False, nombre_original, f"NOMBRE CLIENTE: {nombre_edificio}", nombre_edificio
-        else:
-            return True, None, None, None
+        if nombre_edificio:
+            if nombre_upper in nombre_edificio.upper() or nombre_edificio.upper() in nombre_upper:
+                return True, None, None, None
+            else:
+                return False, nombre_original, f"NOMBRE CLIENTE INCONSISTENTE | Posible edificio: '{nombre_edificio}'", nombre_edificio
     
     errores = []
     patron_caracteres = r"^[A-Za-z0-9 ñÑ()&.,\-]+$"
@@ -1060,22 +968,6 @@ def validar_nombre_cliente_con_edificio(nombre_cliente, building_id, physical_st
         return False, nombre_original, f"NOMBRE CLIENTE: {' | '.join(errores)}", None
     
     return True, None, None, None
-    
-    errores = []
-    patron_caracteres = r"^[A-Za-z0-9 ñÑ()&.,\-]+$"
-    if not re.match(patron_caracteres, nombre_original):
-        caracteres_invalidos = re.sub(r"[A-Za-z0-9 ñÑ()&.,\-]", "", nombre_original)
-        unicos = "".join(sorted(set(caracteres_invalidos)))
-        if unicos:
-            errores.append(f"{JERARQUIA_PORT[16]['errores'][0]}: '{unicos}'")
-    
-    if nombre_original != nombre_upper:
-        errores.append(f"NOMBRE (Corregir a ({nombre_upper}))")
-    
-    if errores:
-        return False, " | ".join(errores), None
-    
-    return True, None, None
 
 def procesar_fibra_un_paso(ws_fi, col_fi, cols_fi, ids_om, resp, modo, odfs_data, error_organizer):
     errores = []
@@ -1682,9 +1574,8 @@ def validar_tipo_consistente_cable(datos_em, ids_om, resp):
                     errs.append((em['id'], em['nombre'], owner, err_msg))
     return errs
 
-def procesar_ports_un_paso(ruta_ports, ids_om, modo, contratistas_asphia, nombres_edificios, nombres_normalizados):
+def procesar_ports_un_paso(ruta_ports, ids_om, modo, nombres_edificios, nombres_normalizados):
     errores_port = []
-    errores_contratista = []
     errores_shelf = []
     errores_bay = []
     
@@ -1717,6 +1608,7 @@ def procesar_ports_un_paso(ruta_ports, ids_om, modo, contratistas_asphia, nombre
         idx_contratista = col.get(cols_port["contratista"].lower(), -1)
         idx_nombre_cliente = col.get(cols_port["nombre_cliente"].lower(), -1)
         idx_comentarios = col.get(cols_port["comentarios"].lower(), -1)
+        idx_direccion_cliente_id = col.get(cols_port["direccion_cliente_id"].lower(), -1)
         
         idx_shelf_id = col.get(cols_shelf["id"].lower(), -1)
         idx_shelf_desc = col.get(cols_shelf["description"].lower(), -1)
@@ -1746,13 +1638,6 @@ def procesar_ports_un_paso(ruta_ports, ids_om, modo, contratistas_asphia, nombre
                 col_name_building = key
                 break
         idx_name_building = col.get(col_name_building, -1) if col_name_building else -1
-        
-        col_cambio_sm = None
-        for key in col.keys():
-            if "cambio service manager" in key:
-                col_cambio_sm = key
-                break
-        idx_cambio_sm = col.get(col_cambio_sm, -1) if col_cambio_sm else -1
         
         col_building_id = None
         for key in col.keys():
@@ -1801,8 +1686,16 @@ def procesar_ports_un_paso(ruta_ports, ids_om, modo, contratistas_asphia, nombre
                     ps = f[idx_physical_status] if idx_physical_status != -1 and idx_physical_status < len(f) else None
                     nombre_cliente_raw = f[idx_nombre_cliente] if idx_nombre_cliente != -1 and idx_nombre_cliente < len(f) else None
                     comentarios_raw = f[idx_comentarios] if idx_comentarios != -1 and idx_comentarios < len(f) else None
+                    direccion_cliente_id_raw = f[idx_direccion_cliente_id] if idx_direccion_cliente_id != -1 and idx_direccion_cliente_id < len(f) else None
                     
                     mensajes = []
+                    
+                    if ps is not None:
+                        ps_upper = str(ps).strip().upper()
+                        if ps_upper == "IN SERVICE" and not es_nodo:
+                            if direccion_cliente_id_raw is None or str(direccion_cliente_id_raw).strip() == "":
+                                mensajes.append(f"{JERARQUIA_PORT[17]['errores'][0]}")
+                    
                     if not es_nodo:
                         if tipo_senal != "Rx - Tx":
                             if tipo_senal:
@@ -1854,42 +1747,8 @@ def procesar_ports_un_paso(ruta_ports, ids_om, modo, contratistas_asphia, nombre
                     if mensajes:
                         error_msg = " | ".join(mensajes)
                         if es_nodo:
-                            error_msg += f" | NOTA: Name_building='{name_building}' → Validaciones de Tipo Señal, Type, Connector Type y Service Level omitidas para nodos"
+                            error_msg += f" | NOTA: Name_building='{name_building}' → Validaciones de Tipo Señal, Type, Connector Type, Service Level y Direccion Cliente Id omitidas para nodos"
                         errores_port.append((idv, f"PORT: {description or 'Sin descripción'}", "", error_msg))
-                    
-                    if ps is not None and str(ps).strip().lower() != "spare":
-                        cambio = ""
-                        if idx_cambio_sm != -1 and idx_cambio_sm < len(f):
-                            cr = f[idx_cambio_sm]
-                            if cr is not None:
-                                cambio = str(cr).strip()
-                        if cambio and cambio not in ("0", ""):
-                            contratista_actual = ""
-                            if idx_contratista != -1 and idx_contratista < len(f):
-                                ca = f[idx_contratista]
-                                if ca is not None:
-                                    contratista_actual = str(ca).strip()
-                            ca_norm = normalizar_nombre_contratista(contratista_actual)
-                            
-                            cont_asphia = None
-                            if cambio in contratistas_asphia:
-                                cont_asphia = contratistas_asphia[cambio]
-                            else:
-                                cb = cambio.upper().strip()
-                                for k, v in contratistas_asphia.items():
-                                    if k.upper().strip() == cb:
-                                        cont_asphia = v
-                                        break
-                            
-                            if cont_asphia:
-                                asphia_contratista, es_instalacion = cont_asphia
-                                ca_norm_asphia = normalizar_nombre_contratista(asphia_contratista)
-                                if ca_norm_asphia != "Sin Informacion" and ca_norm != ca_norm_asphia:
-                                    err_msg = f"CONTRATISTA INCONSISTENTE | En ASPHIA: '{ca_norm_asphia}' | En PORTS: '{ca_norm}'"
-                                    if not es_instalacion:
-                                        err_msg += " | SIN INSTALACION"
-                                    err = (idv, cambio, "", err_msg)
-                                    errores_contratista.append(err)
             
             if idx_shelf_id != -1:
                 shelf_idv = _to_str_id(f[idx_shelf_id]) if idx_shelf_id < len(f) else ""
@@ -1903,46 +1762,6 @@ def procesar_ports_un_paso(ruta_ports, ids_om, modo, contratistas_asphia, nombre
                             if "NODO" in name_building_shelf.upper():
                                 es_nodo_shelf = True
                     
-                    valor_cambio = ""
-                    if idx_cambio_sm != -1 and idx_cambio_sm < len(f):
-                        vr = f[idx_cambio_sm]
-                        if vr is not None:
-                            vs = str(vr).strip()
-                            if vs and vs not in ["0","0.0",""," ","nan","NaN","None"]:
-                                valor_cambio = vs
-                    if not valor_cambio:
-                        if idx_shelf_desc != -1 and idx_shelf_desc < len(f):
-                            dr = f[idx_shelf_desc]
-                            if dr:
-                                valor_cambio = str(dr).strip()
-                    if not valor_cambio:
-                        valor_cambio = "Sin valor"
-                    
-                    contratista_actual = ""
-                    if idx_shelf_contratista != -1 and idx_shelf_contratista < len(f):
-                        cr = f[idx_shelf_contratista]
-                        if cr:
-                            contratista_actual = str(cr).strip()
-                    ca_norm = normalizar_nombre_contratista(contratista_actual)
-                    
-                    cont_asphia = None
-                    if valor_cambio and contratistas_asphia:
-                        vb = valor_cambio.strip().upper()
-                        if vb in contratistas_asphia:
-                            cont_asphia = contratistas_asphia[vb]
-                        else:
-                            for k, v in contratistas_asphia.items():
-                                if k.upper() == vb:
-                                    cont_asphia = v
-                                    break
-                                elif vb in k.upper() or k.upper() in vb:
-                                    cont_asphia = v
-                                    break
-                    cont_asphia_norm = None
-                    if cont_asphia:
-                        asphia_contratista, _ = cont_asphia
-                        cont_asphia_norm = normalizar_nombre_contratista(asphia_contratista)
-                    
                     description_shelf = ""
                     if idx_shelf_desc != -1 and idx_shelf_desc < len(f):
                         dr = f[idx_shelf_desc]
@@ -1954,6 +1773,13 @@ def procesar_ports_un_paso(ruta_ports, ids_om, modo, contratistas_asphia, nombre
                         er = f[idx_shelf_estado]
                         if er:
                             estado_shelf = str(er).strip()
+                    
+                    contratista_actual = ""
+                    if idx_shelf_contratista != -1 and idx_shelf_contratista < len(f):
+                        cr = f[idx_shelf_contratista]
+                        if cr:
+                            contratista_actual = str(cr).strip()
+                    
                     fabricante = ""
                     if idx_shelf_fabricante != -1 and idx_shelf_fabricante < len(f):
                         fr = f[idx_shelf_fabricante]
@@ -1997,18 +1823,17 @@ def procesar_ports_un_paso(ruta_ports, ids_om, modo, contratistas_asphia, nombre
                             err_dem = validar_demarcador_cliente(description_shelf)
                             mensajes_shelf.extend(err_dem)
                     
-                    if not ca_norm or ca_norm == "Sin Informacion":
-                        if cont_asphia_norm and cont_asphia_norm != "Sin Informacion":
-                            mensajes_shelf.append(f"CONTRATISTA VACIO (ACTUAL: '', EN ASPHIA_CLIENTE APARECE: {cont_asphia_norm})")
-                        else:
-                            mensajes_shelf.append("CONTRATISTA VACIO (ACTUAL: '')")
+                    if not contratista_actual:
+                        mensajes_shelf.append(f"{JERARQUIA_SHELF[9]['errores'][0]}")
                     
                     if not estado_shelf:
                         mensajes_shelf.append(f"{JERARQUIA_SHELF[3]['errores'][0]}")
                     elif estado_shelf.lower() not in ["is","spare","under construction","retired"]:
                         mensajes_shelf.append(f"{JERARQUIA_SHELF[3]['errores'][0]} (actual: '{estado_shelf}')")
-                    if not fabricante:
-                        mensajes_shelf.append(f"{JERARQUIA_SHELF[5]['errores'][0]}")
+                    
+                    if fabricante and fabricante.upper() != "SIN INFORMACION":
+                        pass
+                    
                     if not tecnologia:
                         mensajes_shelf.append(f"{JERARQUIA_SHELF[6]['errores'][0]}")
                     if direccion_ip and not es_nodo_shelf:
@@ -2038,7 +1863,7 @@ def procesar_ports_un_paso(ruta_ports, ids_om, modo, contratistas_asphia, nombre
                                 error_msg = error_msg.replace("DESCRIPTION INVALIDA", f"DESCRIPTION INVALIDA. ACTUAL:'{description_shelf}'")
                         if es_nodo_shelf:
                             error_msg += f" | NOTA: Name_building='{name_building_shelf}' → No se aplica validación de 'DEMARCADOR CLIENTE'"
-                        errores_shelf.append((shelf_idv, valor_cambio, "", error_msg))
+                        errores_shelf.append((shelf_idv, f"SHELF: {description_shelf or 'Sin descripción'}", "", error_msg))
             
             if idx_bay_id != -1:
                 bay_idv = _to_str_id(f[idx_bay_id]) if idx_bay_id < len(f) else ""
@@ -2051,19 +1876,6 @@ def procesar_ports_un_paso(ruta_ports, ids_om, modo, contratistas_asphia, nombre
                             name_building_bay = str(nb).strip()
                             if "NODO" in name_building_bay.upper():
                                 es_nodo_bay = True
-                    
-                    valor_cambio_bay = ""
-                    if idx_bay_cambio_service_manager != -1 and idx_bay_cambio_service_manager < len(f):
-                        cr = f[idx_bay_cambio_service_manager]
-                        if cr:
-                            valor_cambio_bay = str(cr).strip()
-                    if not valor_cambio_bay:
-                        if idx_bay_description != -1 and idx_bay_description < len(f):
-                            dr = f[idx_bay_description]
-                            if dr:
-                                valor_cambio_bay = str(dr).strip()
-                    if not valor_cambio_bay:
-                        valor_cambio_bay = "Sin Cambio Service Manager"
                     
                     description_bay = ""
                     if idx_bay_description != -1 and idx_bay_description < len(f):
@@ -2095,25 +1907,11 @@ def procesar_ports_un_paso(ruta_ports, ids_om, modo, contratistas_asphia, nombre
                         if fr:
                             numero_fila = str(fr).strip()
                     
-                    owner_bay = "Sin contratista"
-                    if valor_cambio_bay and valor_cambio_bay != "Sin Cambio Service Manager":
-                        if valor_cambio_bay in contratistas_asphia:
-                            cont_info = contratistas_asphia[valor_cambio_bay]
-                            owner_bay = cont_info[0] if isinstance(cont_info, tuple) else cont_info
-                        else:
-                            if idx_bay_contratista != -1 and idx_bay_contratista < len(f):
-                                crt = f[idx_bay_contratista]
-                                if crt:
-                                    owner_bay = str(crt).strip()
-                                    if not owner_bay:
-                                        owner_bay = "Sin contratista"
-                    else:
-                        if idx_bay_contratista != -1 and idx_bay_contratista < len(f):
-                            crt = f[idx_bay_contratista]
-                            if crt:
-                                owner_bay = str(crt).strip()
-                                if not owner_bay:
-                                    owner_bay = "Sin contratista"
+                    owner_bay = ""
+                    if idx_bay_contratista != -1 and idx_bay_contratista < len(f):
+                        crt = f[idx_bay_contratista]
+                        if crt:
+                            owner_bay = str(crt).strip()
                     
                     id_edificio = ""
                     if idx_bay_id_edificio != -1 and idx_bay_id_edificio < len(f):
@@ -2141,7 +1939,7 @@ def procesar_ports_un_paso(ruta_ports, ids_om, modo, contratistas_asphia, nombre
                     elif not es_nodo_bay:
                         if numero_fila != "1":
                             mensajes_bay.append(f"NUMERO FILA INVALIDO. ACTUAL: {numero_fila}")
-                    if not owner_bay or owner_bay == "Sin contratista":
+                    if not owner_bay:
                         mensajes_bay.append(f"{JERARQUIA_BAY[7]['errores'][0]}")
                     if not id_edificio:
                         mensajes_bay.append(f"{JERARQUIA_BAY[9]['errores'][0]}")
@@ -2157,12 +1955,12 @@ def procesar_ports_un_paso(ruta_ports, ids_om, modo, contratistas_asphia, nombre
                                 error_msg = error_msg.replace("DESCRIPTION INVALIDA", f"DESCRIPTION INVALIDA. ACTUAL:'{description_bay}'")
                         if es_nodo_bay:
                             error_msg += f" | NOTA: Name_building='{name_building_bay}' → No se aplica validación de 'BASTIDOR CLIENTE' ni 'NUMERO FILA = 1'"
-                        errores_bay.append((bay_idv, valor_cambio_bay, "", error_msg))
+                        errores_bay.append((bay_idv, f"BAY: {description_bay or 'Sin descripción'}", "", error_msg))
         
         wb.close()
-        return (errores_port, errores_contratista, errores_shelf, errores_bay, filas_procesadas)
+        return (errores_port, errores_shelf, errores_bay, filas_procesadas)
     except Exception as e:
-        return ([], [], [], [], 0)
+        return ([], [], [], 0)
 
 def validar_edificios_y_estructura_un_paso(ruta_ed, ids_om, exc_ed, resp_edificio, modo, error_organizer):
     errores_edificio = []
@@ -2211,6 +2009,14 @@ def validar_edificios_y_estructura_un_paso(ruta_ed, ids_om, exc_ed, resp_edifici
                         base = nom.split("/")[0].strip()
                     else:
                         continue
+                    
+                    valido_sufijos, msg_sufijos, nombre_corregido = validar_sufijos_pegados(nom)
+                    if not valido_sufijos:
+                        owner = resp_edificio.get(idv, "RESPONSABLE NO ENCONTRADO")
+                        err_tuple = (idv, nom, owner, msg_sufijos)
+                        errores_edificio.append(err_tuple)
+                        error_organizer.agregar_error(idv, "EDIFICIO", err_tuple)
+                    
                     if idx_tipo != -1:
                         tipo = str(row[idx_tipo] or "").strip() if idx_tipo < len(row) else ""
                     else:
@@ -2613,7 +2419,6 @@ def ejecutar_validacion(modo):
     resp = cargar_responsables(str(RUTA_RESPONS), "TD ACCES0s", "cable acceso")
     resp_edificio = cargar_responsables(str(RUTA_RESPONS), "TD ACCES0s", "id edifico")
     
-    contratistas_asphia = cargar_contratistas_asphia(RUTA_ASPHIA_CLIENTES)
     odfs_data = cargar_odfs_validaciones(RUTA_ODFS)
     
     nombres_edificios, nombres_normalizados = cargar_nombres_edificios(RUTA_ED_MS if modo == "masivo" else RUTA_EDIFICIO, modo)
@@ -2709,23 +2514,20 @@ def ejecutar_validacion(modo):
     print("├── PORTS........: ", end="", flush=True)
     ports_time = time.time()
     err_ports = []
-    err_ports_contratista = []
     err_shelf = []
     err_bay = []
     try:
         if RUTA_PORTS.exists():
-            (err_ports, err_ports_contratista, err_shelf, err_bay, filas_ports) = procesar_ports_un_paso(
-                RUTA_PORTS, ids_om, modo, contratistas_asphia, nombres_edificios, nombres_normalizados
+            (err_ports, err_shelf, err_bay, filas_ports) = procesar_ports_un_paso(
+                RUTA_PORTS, ids_om, modo, nombres_edificios, nombres_normalizados
             )
             contadores['ports'] = filas_ports
             print(f"{contadores['ports']:,}")
             
-            total_ports_errors = len(err_ports) + len(err_shelf) + len(err_bay) + len(err_ports_contratista)
+            total_ports_errors = len(err_ports) + len(err_shelf) + len(err_bay)
             errores_por_tipo['PORTS'] = total_ports_errors
             
             for error in err_ports:
-                error_organizer.agregar_error(error[0], "PORT", error)
-            for error in err_ports_contratista:
                 error_organizer.agregar_error(error[0], "PORT", error)
             for error in err_shelf:
                 error_organizer.agregar_error(error[0], "SHELF", error)

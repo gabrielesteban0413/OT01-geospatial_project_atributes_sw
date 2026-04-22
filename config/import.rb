@@ -1,19 +1,12 @@
 #-----------------------------01_PS-REPORT----------------------------------------------------------------------------------------------------------------------------------------------------
-hola
+
     gitstatus
 
-        cd "/c/A_GS1_PROYECTOS/0_Documents_gs"
-        git init
-        #import
-        echo "output/quality/" >> .gitignore
-        echo "output/delete/" >> .gitignore
-        echo "output/delete/" >> .gitignore
-        echo "data/" >> .gitignore
-
+   
         git status
-        git add .
-
-        git commit -m "Primer commit, excluyendo output/quality"
+        git add . 
+        git commit -m "a1"
+        git push
 
     --
 
@@ -88,7 +81,8 @@ hola
 
 
     instaladores :
-
+    
+    pip install psycopg2-binary sqlalchemy pandas openpyxl
     pip install pandas openpyxl numpy
     pip install tqdm 
     pip install pandas
@@ -140,19 +134,6 @@ hola
 
 
             #SCRIPTS FUTUROS 
-
-            RECORDAR AGREGAR EN LA CALIDAD EL ATRIBUTO (COMENTARIO) PARA DEJAR LOS CLIENTES SIN PUNTOS, SIGNOS ETC
-            ANILLO EN CENTRAL IGUAL AL ANILLO EN CLIENTE 
-
-            BASTIDOR COMENTARIOS 
-            SHELF DESCRIPCION 
-            Description (2)
-            Slot5 LE0MG48SC
-
-            3492000048794831063	G-24
-            XGIGA = 0 el Slot
-            GIGA = 1 caso unico 
-
 
 
 
@@ -208,8 +189,22 @@ hola
     #-----------------------------00_REUNIONES----------------------------------------------------------------------------------------------------------------------------------------------------  
 
 
+        REUNIÓN 2026/04/25 APROX
+            
+        --CD: Recordar que al actualizar un elemento, se tomará como responsable de calidad a la última persona que haya hecho la modificación. Esto se debe a que los equipos se han encargado de mantener la información actualizada
+        --CD: Con el control del (nombre cliente) en los puertos, se encontraron varios factores que no se tenían en cuenta para futuras integraciones. Por favor siga manejando el control en este atributo sin confiar por completo en el nombre del edificio, ya que así se podrán detectar inconsistencias tanto en puertos como en edificios
+        --PORT: La dirección en el puerto es necesaria, no se podra dejar en vacio
+        --PORT: Recordar que SAS o LTDA las letras van unidad no se recibirar S A S  
+        --PORT: Se corrigieron todos los puertos que aparecian como SCJ ALCALDIAS  y se dejan como SCJ 
+        --EMPALME: Se aumento la cantidad de errores en consecutivos ET 
 
-        REUNIÓN 2026/03/30 APROX
+    
+
+
+
+
+        
+        REUNIÓN 2026/04/14 
 
 
             Multiples errores no fueron corregidos frente a lo enviado la semana pasada.

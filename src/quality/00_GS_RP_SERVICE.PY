@@ -13,19 +13,20 @@ import warnings
 
 warnings.filterwarnings('ignore', category=UserWarning, module='openpyxl')
 
-# =============================================================================
-# CONFIGURACIÓN
-# =============================================================================
-
-RUTA_ORIGEN = Path(r"\\atlas\VP_INFRAESTRUCTURA\G_Plan_Gestion_Proyectos\RI200_A_Admon_Capacidad_P_R_Infr\2023\REPORTES_INF_CART_GEO\DICCIONARIO_DE_DATOS\40_CABLES_CORPORATIVOS\02_ConversionCAD_Shape\Archivos_Service_PATH")
+RUTA_ORIGEN = Path(r"\\atlas\VP_INFRAESTRUCTURA\G_Plan_Gestion_Proyectos\RI200_A_Admon_Capacidad_P_R_Infr\2023\REPORTES_INF_CART_GEO\DICCIONARIO_DE_DATOS\40_CABLES_CORPORATIVOS\02_ConversionCAD_Shape\Archivos_Service_PATH\nico")
 RUTA_DESTINO = Path(r"C:\A_GS1_PROYECTOS")
-
 EXTENSION = ".txt"
 
 PATRONES = {
-    'ip': [
+    'ip_demarcador': [
+        r'IP\s+DEMARCADOR\s*:\s*(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})',
+        r'DEMARCADOR\s*:\s*(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})',
         r'IP\s*DEMAR\s*:\s*(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})',
-        r'IP\s*DEMARCADOR\s*:\s*(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})',
+        r'DEMARCADOR\s+(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})',
+        r'IP\s+DEMARCADOR\s+(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})',
+        r'IP\s*DEMAR\s+(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})',
+    ],
+    'ip_general': [
         r'Connected\s+to\s+(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})',
         r'IP\s*:\s*(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})',
         r'\b(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\b',
@@ -41,10 +42,19 @@ PATRONES = {
     ],
     'ancho_banda': [
         r'ANCHO DE BANDA FINAL\s*[:=]?\s*([^\n]+)',
+        r'BW:\s*([^\n]+)',
+        r'BW\s+([^\n]+)',
+        r'ANCHO DE BANDA SOLICITADO\s*([^\n]+)',
     ],
     'id_servicio': [
-        r'ID SERVICIO:\s*([^\n]+)',
-        r'ID DEL SERVICIO AFECTADO:\s*([^\n]+)',
+        r'ID\s+DEL\s+SERVICIO\s+AFECTADO\s*:\s*([A-Z0-9]+)',
+        r'ID\s+DEL\s+SERVICIO\s+AFECTADO\s*:\s*([^\n]+)',
+        r'ID\s+SERVICIO\s*:\s*([A-Z0-9]+)',
+        r'ID\s+SERVICIO\s*:\s*([^\n]+)',
+        r'ID\s+DEL\s+SERVICIO\s+AFECTADO\s+([A-Z0-9]+)',
+        r'ID\s+SERVICIO\s+([A-Z0-9]+)',
+        r'\b(CAV\d{2}[A-Z]{2}\d{7,10})\b',
+        r'\b([A-Z]{3}\d{2}[A-Z]{2}\d{7,10})\b',
     ],
     'coordenadas_multipoint': [
         r'COORDENADAS:\s*MultiPointZ\s*\(\s*\(\s*([-+]?\d+\.\d+)\s+([-+]?\d+\.\d+)',
@@ -60,21 +70,22 @@ PATRONES = {
     ],
     'tipo_servicio': [
         r'TIPO DE SERVICIO:\s*([^\n]+)',
+        r'TIPO DE SERVICIO\s+([^\n]+)',
     ],
     'equipo_central': [
         r'METRO:\s*([^\n]+)',
+        r'METRO\s+([^\n]+)',
     ],
     'puerto_common': [
         r'PUERTO COMMON:\s*([^\n]+)',
+        r'PUERTO COMMON\s+([^\n]+)',
     ],
     'puerto_owner': [
         r'PUERTO OWNER:\s*([^\n]+)',
+        r'PUERTO OWNER\s+([^\n]+)',
     ],
 }
 
-# =============================================================================
-# UTILIDADES DE COORDENADAS
-# =============================================================================
 
 class CoordenadasFormatter:
     @staticmethod
@@ -104,9 +115,6 @@ class CoordenadasFormatter:
             return f"{grados}°{minutos}'{segundos}\""
         return coord_gms
 
-# =============================================================================
-# EXTRACTOR DE DATOS
-# =============================================================================
 
 class DataExtractor:
     def __init__(self):
@@ -119,13 +127,26 @@ class DataExtractor:
         return valor_limpio if valor_limpio else valor
 
     def extraer_ip(self, texto: str) -> str:
-        for patron in PATRONES['ip']:
+        for patron in PATRONES['ip_demarcador']:
             match = re.search(patron, texto, re.IGNORECASE)
             if match:
                 ip = match.group(1).strip()
                 partes = ip.split('.')
                 if len(partes) == 4 and all(p.isdigit() and 0 <= int(p) <= 255 for p in partes):
                     return ip
+        
+        for patron in PATRONES['ip_general']:
+            match = re.search(patron, texto, re.IGNORECASE)
+            if match:
+                ip = match.group(1).strip()
+                partes = ip.split('.')
+                if len(partes) == 4 and all(p.isdigit() and 0 <= int(p) <= 255 for p in partes):
+                    contexto_inicio = max(0, match.start() - 20)
+                    contexto = texto[contexto_inicio:match.end() + 10]
+                    if 'IP WAN' in contexto or '/30' in contexto:
+                        continue
+                    return ip
+        
         return "SIN IP"
 
     def extraer_anillo(self, texto: str) -> str:
@@ -143,6 +164,9 @@ class DataExtractor:
             match = re.search(patron, texto, re.IGNORECASE)
             if match:
                 valor = match.group(1).strip().strip(':,- ')
+                numero_match = re.search(r'(\d+(?:\.\d+)?)', valor)
+                if numero_match:
+                    valor = numero_match.group(1)
                 valor = re.sub(r'(?i)(mbps|mbit|megabite?)', '', valor).strip()
                 if valor:
                     return valor
@@ -150,11 +174,13 @@ class DataExtractor:
 
     def extraer_id_servicio(self, texto: str) -> str:
         for patron in PATRONES['id_servicio']:
-            match = re.search(patron, texto, re.IGNORECASE)
-            if match:
+            matches = re.finditer(patron, texto, re.IGNORECASE)
+            for match in matches:
                 id_serv = match.group(1).strip().strip(':,- ')
-                if id_serv:
-                    return id_serv
+                if id_serv and len(id_serv) >= 10:
+                    id_serv = re.sub(r'[^\w]', '', id_serv)
+                    if id_serv:
+                        return id_serv
         return "SIN ID SERVICIO"
 
     def extraer_tipo_servicio(self, texto: str) -> str:
@@ -238,7 +264,6 @@ class DataExtractor:
         ancho_banda = self.extraer_ancho_banda(texto)
         id_servicio = self.extraer_id_servicio(texto)
         lat, lon = self.extraer_coordenadas(texto)
-
         tipo_servicio = self.extraer_tipo_servicio(texto)
         equipo_central = self.extraer_equipo_central(texto)
         puerto_common = self.extraer_puerto_common(texto)
@@ -263,9 +288,6 @@ class DataExtractor:
             'puerto_owner': puerto_owner,
         }
 
-# =============================================================================
-# PROCESADOR DE ARCHIVOS
-# =============================================================================
 
 class FileProcessor:
     def __init__(self, ruta_origen: Path):
@@ -293,7 +315,7 @@ class FileProcessor:
         except Exception:
             self.estadisticas['errores'] += 1
             return None
-
+        
         datos = self.extractor.extraer_todos(texto)
         nombre_archivo = archivo.stem
 
@@ -304,7 +326,7 @@ class FileProcessor:
             self.estadisticas['con_ip'] += 1
         if datos['anillo'] != "SIN ANILLO":
             self.estadisticas['con_anillo'] += 1
-        if datos['ancho_banda'] != "SIN ANCHO DE BANDA FINAL":
+        if datos['ancho_banda'] != "N/A":
             self.estadisticas['con_ancho_banda'] += 1
         if datos['id_servicio'] != "SIN ID SERVICIO":
             self.estadisticas['con_id_servicio'] += 1
@@ -337,12 +359,8 @@ class FileProcessor:
             'Archivo', 'ID_Servicio', 'Anillo', 'IP', 'ancho_banda', 'Coordenadas',
             'Tipo_Servicio', 'Equipo_Central', 'Puerto_Common', 'Puerto_Owner'
         ]
-        df = pd.DataFrame(filas, columns=columnas)
-        return df
+        return pd.DataFrame(filas, columns=columnas)
 
-# =============================================================================
-# ESCRITOR DE EXCEL
-# =============================================================================
 
 class ExcelWriter:
     def __init__(self, ruta_destino: Path):
@@ -376,9 +394,6 @@ class ExcelWriter:
             df.to_csv(ruta_csv, index=False, encoding='utf-8-sig')
             return ruta_csv
 
-# =============================================================================
-# FUNCIÓN PRINCIPAL
-# =============================================================================
 
 def main():
     if not RUTA_ORIGEN.exists():
@@ -392,6 +407,7 @@ def main():
 
     writer = ExcelWriter(RUTA_DESTINO)
     writer.guardar(df)
+
 
 if __name__ == "__main__":
     main()
