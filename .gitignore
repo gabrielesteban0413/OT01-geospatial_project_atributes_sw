@@ -1,65 +1,292 @@
-# EXCLUIR CARPETAS COMPLETAS
+# ============================================================================
+# SMALLWORLD GIS PLATFORM - .gitignore
+# Versión: 1.0.0
+# Última actualización: 2026-04-22
+# ============================================================================
+
+# ----------------------------------------------------------------------------
+# CARPETAS COMPLETAS
+# ----------------------------------------------------------------------------
+
+# Datos y documentos (movidos a migrate_delete)
 data/
 docs/
 output/
 delete/
+database/output/
+
+# Código obsoleto y temporal
 src/quality/OBSOLETOS/
 src/private_collections/AttOthers/ACTUALIZACIONES/Cargues_ArcGIS/
 src/transformations/01_Scripts_Validacion/build/
+src/transformations/01_Scripts_Validacion/dist/
+src/transformations/01_Scripts_Validacion/localpycs/
 
-# EXCLUIR ARCHIVOS GRANDES DETECTADOS
+# Scripts obsoletos (ya migrados)
+scripts/delete/
+scripts/05_PRUEBAS/
+scripts/02_SW_MGK/
+scripts/05_ATAJOS/
+
+# Carpetas de build y temporales
+**/build/
+**/dist/
+**/localpycs/
+**/__pycache__/
+**/.pytest_cache/
+**/.coverage
+**/htmlcov/
+
+# ----------------------------------------------------------------------------
+# ARCHIVOS GRANDES DETECTADOS
+# ----------------------------------------------------------------------------
+
+# Textos grandes
 src/private_collections/AttOthers/ACTUALIZACIONES/Script_Borrado_placas/Borrar_placas.txt
 src/private_collections/AttOthers/ACTUALIZACIONES/Script_Construcciones/c_p1.txt
 src/private_collections/AttOthers/ACTUALIZACIONES/Script_Modificar_4campos_en_Lote/Script_Cambio_Uso_1/cambio_usos_nulos_sw - copia.txt
 src/private_collections/AttOthers/ACTUALIZACIONES/Script_Poblar_Uso_ACTUAL/usos_1.txt
 src/private_collections/02_mit_rme_port/edit/P00_MERGE2.txt
+src/private_collections/02_mit_rme_port/edit/P00_MERGE3.txt
+src/private_collections/02_mit_rme_port/edit/P01_unidad_ancho_banda2.txt
+
+# Configuraciones específicas
 config/db_ppal_sw.magik
 
-# EXCLUIR ARCHIVOS COMPILADOS Y TEMPORALES
-**/build/
-**/__pycache__/
+# ----------------------------------------------------------------------------
+# ARCHIVOS COMPILADOS Y TEMPORALES
+# ----------------------------------------------------------------------------
+
+# Python
 *.pyc
 *.pyo
-*.pkg
+*.pyd
 *.pyz
+*.pyw
+*.so
+.Python
+
+# Build artifacts
+*.pkg
+*.spec
+*.toc
+
+# Archivos temporales
 * - copia.*
-*~$
+*~*
+*~$.$
+~$*
 *.tmp
 *.bak
-*.log
+*.backup
+*.swp
+*.swo
+*~
 
-# EXCLUIR ARCHIVOS GIS PESADOS
-*.gdb/
+# Logs
+*.log
+*.err
+*.out
+
+# ----------------------------------------------------------------------------
+# ARCHIVOS GIS PESADOS
+# ----------------------------------------------------------------------------
+
+# Shapefiles (archivos grandes)
 *.shp
 *.shx
 *.dbf
 *.prj
 *.sbn
 *.sbx
+*.shp.xml
+*.cpg
 
-# EXCLUIR VIDEOS Y MULTIMEDIA
+# Geodatabases
+*.gdb/
+*.gdb/*
+*.mdb
+*.accdb
+
+# Rasters
+*.tif
+*.tiff
+*.img
+*.ecw
+*.sid
+*.jp2
+
+# ----------------------------------------------------------------------------
+# VIDEOS Y MULTIMEDIA
+# ----------------------------------------------------------------------------
+
+# Videos
 *.mp4
 *.webm
 *.avi
 *.mov
 *.mkv
-*.mp3
+*.flv
+*.wmv
+*.m4v
+*.mpg
+*.mpeg
 
-# EXCLUIR EJECUTABLES Y COMPRIMIDOS
+# Audio
+*.mp3
+*.wav
+*.ogg
+*.flac
+*.aac
+
+# Imágenes grandes
+*.psd
+*.raw
+*.bmp
+*.gif
+
+# ----------------------------------------------------------------------------
+# EJECUTABLES Y COMPRIMIDOS
+# ----------------------------------------------------------------------------
+
+# Ejecutables
 *.exe
 *.msi
+*.msp
+*.com
+*.cmd
+*.bat
+*.dll
+*.so
+*.dylib
+
+# Compresores
 *.zip
 *.rar
 *.7z
+*.tar
+*.gz
+*.bz2
+*.xz
 
-# EXCLUIR DOCUMENTOS PESADOS
+# ----------------------------------------------------------------------------
+# DOCUMENTOS PESADOS
+# ----------------------------------------------------------------------------
+
+# Documentos Office
 *.pdf
 *.xlsx
-*.docx
-*.pptx
 *.xlsm
+*.xlsb
+*.xls
+*.docx
+*.doc
+*.pptx
+*.ppt
 
-# EXCLUIR SISTEMA
+# ----------------------------------------------------------------------------
+# ARCHIVOS DE CONFIGURACIÓN PERSONAL
+# ----------------------------------------------------------------------------
+
+# Variables de entorno
+.env
+.env.local
+.env.development
+.env.production
+.env.staging
+
+# Secretos y credenciales
+*.secret
+*.key
+*.pem
+*.crt
+*.cer
+*.p12
+
+# Configuraciones IDE
+.vscode/
+.idea/
+*.sublime-*
+*.swp
+
+# ----------------------------------------------------------------------------
+# SISTEMA OPERATIVO
+# ----------------------------------------------------------------------------
+
+# Windows
 desktop.ini
-.DS_Store
 Thumbs.db
+ehthumbs.db
+*.lnk
+*.url
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+
+# Linux
+.directory
+*.pid
+*.lock
+
+# ----------------------------------------------------------------------------
+# ARCHIVOS DE REPORTES Y MÉTRICAS
+# ----------------------------------------------------------------------------
+
+# Reportes generados
+reports/
+coverage/
+.coverage.*
+.coveragerc
+htmlcov/
+.xml
+*.coverage
+
+# Rendimiento
+*.perf
+*.prof
+
+# ----------------------------------------------------------------------------
+# EXCLUSIONES DE MIGRACIÓN
+# ----------------------------------------------------------------------------
+
+# Archivos migrados (preservados pero ignorados)
+migrate_delete/
+migrate_delete/*
+
+# ----------------------------------------------------------------------------
+# EXCEPCIONES (archivos que SÍ deben versionarse)
+# ----------------------------------------------------------------------------
+
+# No ignorar READMEs
+!README.md
+!**/README.md
+
+# No ignorar requirements
+!requirements.txt
+!requirements-dev.txt
+
+# No ignorar configuraciones base
+!config/config.json
+!config/environments/*/smallworld.json
+
+# No ignorar scripts de migración
+!src/core/database/migrations/*.sql
+
+# No ignorar ejemplos
+!*.example
+!*.sample
+!*.template
+
+# No ignorar documentación
+!docs/architecture/*.md
+!docs/api/*.md
+!docs/operations/*.md
+
+# ============================================================================
+# FIN DEL ARCHIVO
+# ============================================================================

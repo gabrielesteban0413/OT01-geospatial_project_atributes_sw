@@ -1,6 +1,0 @@
-KR 94 87 80 SUR TO  1 AP 2001&KR 94 87 80 SUR TO  1 AP 2001                                                                                                                                             
-CL 102 70C 27  LC 1&CL 102 70C 27  LC 1                                                                                                                                                                 
-KR 54 27 32 SUR  PI 2&KR 54 27 32 SUR  PI 2                                                                                                                                                             
-EL TRI. PTE PRIMAVERA LOTE  2 OLARTE&EL TRI. PTE PRIMAVERA LOTE  2 OLARTE                                                                                                                               
-EL TRI. PTE PRIMAVERA LOTE  3 OLARTE&EL TRI. PTE PRIMAVERA LOTE  3 OLARTE                                                                                                                                                                    
-                                                                                                                          

@@ -1,9 +1,0 @@
-El tiempo de la búsqueda espacial de elementos bien sea por selección de area, trazo de trail o ventana depende del espacio en disco que se tenga determinado para la aplicación smw, atendiendo la necesidad de que estas consultas sean mas reapidas se crearon unos scripts que a partir de la selección de un área en pni y luego la ejecución del codigo en el promt (ventana negra) de smw. Luego el envía el resultado de objetos contenidos al explorer de pni, en promedio 1 o 2 minutos, cabe resaltar que los objetos son:
-
-- Punto de Acceso
-- Cámara
-- Canalización
-- Poste
-- Mensajero
-
-Adjunto envio los scripts por favor probarlos copiando y pegando el código enel promt de smw luego de dar signo $. Quedo atenta a comentarios. Gracias
