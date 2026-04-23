@@ -9,19 +9,12 @@
 
 ---
 
-## 📋 Tabla de Contenidos
+##  Tabla de Contenidos
 
 - [Descripción General](#descripción-general)
 - [Arquitectura](#arquitectura)
 - [Estructura del Proyecto](#estructura-del-proyecto)
 - [Tecnologías Utilizadas](#tecnologías-utilizadas)
-- [Requisitos Previos](#requisitos-previos)
-- [Instalación y Configuración](#instalación-y-configuración)
-- [Despliegue en AWS](#despliegue-en-aws)
-- [Comandos Útiles](#comandos-útiles)
-- [Estructura de Base de Datos](#estructura-de-base-de-datos)
-- [Monitoreo y Alertas](#monitoreo-y-alertas)
-- [Contribución](#contribución)
 - [Licencia](#licencia)
 
 ---
@@ -49,22 +42,19 @@
 ---
 
 
-│ │ RDS PostgreSQL + PostGIS 
-│ │ - Datos geoespaciales (puntos, líneas, polígonos) 
-│ │ - Auditoría y tracking de cambios │ │
+ RDS PostgreSQL + PostGIS - Datos geoespaciales (puntos, líneas, polígonos)  - Auditoría y tracking de cambios 
 
-┌─────────────────────────────────┐
-│ Smallworld GIS                  │
-│ - Magik/Ruby scripts            │
-└─────────────────────────────────┘
+
+ - Smallworld GIS                  
+ - Magik/Ruby scripts            
 
 
 
 
 
-## Arquitectura - SMALLWORLD GIS PLATFORM
-# Generado: 2026-04-22
-# ============================================================================
+
+## Arquitectura - SMALLWORLD GIS PLATFORM (Generado: 2026-04-22)
+
 
 GS
 ├── src/                                    
@@ -72,8 +62,8 @@ GS
 │   │   ├── database/                       
 │   │   │   └── migrations/                 
 │   │   ├── geospatial/                     
-│   │   │   ├── processors/                 # Procesadores GIS
-│   │   │   └── validators/                 # Validadores topológicos
+│   │   │   ├── processors/  # Procesadores GIS
+│   │   │   └── validators/  # Validadores topológicos
 │   │   └── sync/                           
 │   │       ├── engines/                    
 │   │       └── handlers/                   
@@ -150,9 +140,9 @@ GS
 │   │   ├── decisions/                                        
 │   │   └── diagrams/    
 │   │
-│   ├── operations/                         # Documentación operativa
+│   ├── operations/    # Documentación operativa
 │   │   ├── incidents/                     
-│   │   └── runbooks/                       # Procedimientos operativos
+│   │   └── runbooks/  # Procedimientos operativos
 │   │
 │   ├── security/                         
 │
@@ -183,57 +173,40 @@ GS
 │   │   ├── MG-01-Bulk Merge_Centrales.xlsx
 │   │   └── PROCESO-04-AuditoriaCalidadVisualAtributiva.xlsm
 │   │
-│   ├── reference/                          # Datos de referencia
-│   └── smallworld/                         # Datos Smallworld
-│       └── mit_rme_port/
-│           └── find_output/                # Resultados de búsqueda
+│   ├── reference/                         
+│   └── smallworld/                         
+│       └── colleccion/
+│           └── find_output/            
 │
-├── tests/                                  # Pruebas automatizadas
-│   ├── e2e/                                # Pruebas end-to-end
-│   ├── integration/                        # Pruebas de integración
-│   │   └── pipelines/                      # Pruebas de pipelines
-│   ├── unit/                               # Pruebas unitarias
-│   │   └── core/                           # Pruebas del núcleo
-│   └── 01_TR_INDEX                         # Índice de pruebas
+├── tests/                              
+│   ├── e2e/                             
+│   ├── integration/                       
+│   │   └── pipelines/                     
+│   ├── unit/                         
+│   │   └── core/                          
+│   └── 01_TR_INDEX                        
 │
-├── scripts/                                # Scripts de automatización
-│   ├── database/                           # Scripts de base de datos
-│   │   ├── migrations/                     # Migraciones automáticas
-│   │   └── seeds/                          # Datos semilla
-│   ├── deployment/                         # Scripts de despliegue
-│   ├── monitoring/                         # Scripts de monitoreo
-│   │   ├── alerts/                         # Configuración de alertas
-│   │   ├── cloudwatch/                     # Dashboards CloudWatch
-│   │   └── dashboards/                     # Dashboards personalizados
-│   ├── setup/                              # Scripts de instalación
-│   ├── shortcuts/                          # Accesos directos
-│   └── sw_trz/                             # Scripts Traze
+├── scripts/                               
+│   ├── database/                      
+│   │   ├── migrations/             
+│   │   └── seeds/                   
+│   ├── deployment/                      
+│   ├── monitoring/                       
+│   │   ├── alerts/                         
+│   │   ├── cloudwatch/                 
+│   │   └── dashboards/                    
+│   ├── setup/                    
+│   ├── shortcuts/                        
+│   └── sw_trz/                         
 │
-├── .github/                                # Configuración GitHub
-│   ├── workflows/                          # GitHub Actions
-│   ├── ISSUE_TEMPLATE/                     # Plantillas de issues
-│   └── PULL_REQUEST_TEMPLATE/              # Plantilla de PR
+├── .github/                               
+│   ├── workflows/                     
+│   ├── ISSUE_TEMPLATE/            
+│   └── PULL_REQUEST_TEMPLATE/          
 │
-├── migrate_delete/                         # Archivos migrados (no esenciales)
-│   ├── backup_copies/                      # Copias de seguridad
-│   ├── build_artifacts/                    # Artefactos de compilación
-│   ├── empty_folders/                      # Carpetas vacías
-│   ├── old_scripts/                        # Scripts obsoletos
-│   ├── personal_documents/                 # Documentos personales
-│   ├── pyc_files/                          # Archivos .pyc compilados
-│   └── videos/                             # Videos de capacitación
-│
-├── README.md                               # Documentación principal
-├── requirements.txt                        # Dependencias Python
-├── requirements-dev.txt                    # Dependencias de desarrollo
-├── setup.py                                # Configuración del paquete
-├── Makefile                                # Comandos automatizados
-└── .gitignore                              # Archivos ignorados por git
-
-# ============================================================================
-# ESTADÍSTICAS
-# ============================================================================
-# Total carpetas principales: 8
-# Total archivos esenciales: 71
-# Espacio liberado en migrate_delete: ~5.5 GB
-# ============================================================================
+├── README.md                            
+├── requirements.txt                     
+├── requirements-dev.txt            
+├── setup.py                                
+├── Makefile                              
+└── .gitignore                    
