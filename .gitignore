@@ -21,6 +21,7 @@ scripts/05_PRUEBAS/
 scripts/02_SW_MGK/
 scripts/05_ATAJOS/
 
+
 **/build/
 **/dist/
 **/localpycs/
@@ -28,6 +29,12 @@ scripts/05_ATAJOS/
 **/.pytest_cache/
 **/.coverage
 **/htmlcov/
+
+
+#ARCHIVOS DE CONFIGURACIÓN Y CREDENCIALES
+scripts/database/01_TZ_MS_GS.py
+scripts/database/table_bulk merge_centrales.py
+
 
 # ARCHIVOS GRANDES DETECTADOS
 src/private_collections/AttOthers/ACTUALIZACIONES/Script_Borrado_placas/Borrar_placas.txt
@@ -37,6 +44,9 @@ src/private_collections/AttOthers/ACTUALIZACIONES/Script_Poblar_Uso_ACTUAL/usos_
 src/private_collections/02_mit_rme_port/edit/P00_MERGE2.txt
 src/private_collections/02_mit_rme_port/edit/P00_MERGE3.txt
 src/private_collections/02_mit_rme_port/edit/P01_unidad_ancho_banda2.txt
+
+
+
 
 config/db_ppal_sw.magik
 
