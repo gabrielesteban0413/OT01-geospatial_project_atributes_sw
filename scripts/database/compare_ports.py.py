@@ -1,10 +1,20 @@
 import openpyxl
 from pathlib import Path
 import pandas as pd
+import os
+from dotenv import load_dotenv
 
-ARCHIVO_ORIGINAL = Path(r"C:\A_GS1_PROYECTOS\0_Documents_gs\database\output\01-Bulk export of ports.xlsx")
-ARCHIVO_NUEVO = Path(r"C:\A_GS1_PROYECTOS\0_Documents_gs\database\output\01-Bulk export of ports1.xlsx")
-OUTPUT_EXCEL = Path(r"C:\A_GS1_PROYECTOS\0_Documents_gs\database\output\comparacion_ports.xlsx")
+load_dotenv()
+
+BASE_PATH_STR = os.getenv("GS_BASE_PATH")
+if not BASE_PATH_STR:
+    raise ValueError("Variable GS_BASE_PATH no encontrada en .env")
+
+BASE_PATH = Path(BASE_PATH_STR)
+
+ARCHIVO_ORIGINAL = BASE_PATH / "01-Bulk export of ports.xlsx"
+ARCHIVO_NUEVO = BASE_PATH / "01-Bulk export of ports1.xlsx"
+OUTPUT_EXCEL = BASE_PATH / "comparacion_ports.xlsx"
 
 COLUMNAS_INTERES = ['Id', 'Cambio Service Manager', 'Id Servicio']
 

@@ -21,10 +21,12 @@ if not BASE_PATH_STR:
 
 BASE_PATH = Path(BASE_PATH_STR)
 
+PROPIETARIO_VALIDO = os.getenv("PROPIETARIO_VALIDO", "DESCONOCIDO")
+
 RUTA_MACRO = BASE_PATH / "04-AuditoriaCalidadVisualAtributiva.xlsm"
-RUTA_RESPONS = BASE_PATH / "03-LINEA CABLES PRIORIZADOS.xlsx"
+RUTA_RESPONS = BASE_PATH / "03-linea_cables_responsables.xlsx"
 RUTA_ODFS = BASE_PATH / "04-Sync_SW_SP.xlsx"
-RUTA_ASPHIA_CLIENTES = BASE_PATH / "03-ASPHIA_CLIENTES.xlsx"
+RUTA_ASPHIA_CLIENTES = BASE_PATH / "03-asph_report_origin.xlsx"
 
 RUTA_ED_MS = BASE_PATH / "01-Bulk export of buildings.xlsx"
 RUTA_FI_MASIVO = BASE_PATH / "01-Bulk export of fibers.xlsx"
@@ -35,8 +37,6 @@ RUTA_EDIFICIO = BASE_PATH / "02-Individual export of buildings.xlsx"
 RUTA_FI_DIARIO = BASE_PATH / "02-Individual export of fibers.xlsx"
 RUTA_EM_DIARIO = BASE_PATH / "02-Individual export of splices.xlsx"
 RUTA_PORTS_DIARIO = BASE_PATH / "02-Individual export of ports.xlsx"
-
-
 
 COLUMNAS_MASIVO = {
     "FIBRA": {
@@ -223,7 +223,7 @@ JERARQUIA_FIBRA = {
     8: {"campo": "Nodo B", "errores": ["NODO INVÁLIDO","NODO A Y B"]},
     9: {"campo": "Especificación", "errores": ["ESPECI (senc)","ESPECI (Tipo 2)","ESPECI ('revisar'Ultima Milla cantidad de Hilos)","ESPECI (NO acorde a lo establecido)","ESPECI EA (revisar Tipo)","ESPECI INCONSISTENTE EN CABLE TRONCAL","ESPECI INCONSISTENTE"]},
     10: {"campo": "Estado de Construcción", "errores": ["STATUS ADMITIDOS (En servicio/Plan Abandono/Futuro)","C.STATUS","STATUS"]},
-    11: {"campo": "Propietario", "errores": ["PROPIETARIO (ETB)"]},
+    11: {"campo": "Propietario", "errores": [f"PROPIETARIO ({PROPIETARIO_VALIDO})"]},
     12: {"campo": "Tipo de Colocacion", "errores": ["TIPO DE COLOCACION","COLOCACION"]},
     13: {"campo": "Longitud Calculada de Cable", "errores": []},
     14: {"campo": "Longitud Calculada de Fibra", "errores": []},
@@ -241,7 +241,7 @@ JERARQUIA_EMPALME = {
     1: {"campo": "Id", "errores": ["CONSECUTIVO","DUPLICADO"]},
     2: {"campo": "Segmento", "errores": []},
     3: {"campo": "Nombre", "errores": ["NOMBRE(ERRONEO)","NOMBRE(CONTIENE ESPACIOS)","NOMBRE(LETRA CONSECUTIVA)","NOMBRE(CARACTERES ERRONEOS)","usar:"]},
-    4: {"campo": "Propietario", "errores": ["PROPIETARIO (ETB)"]},
+    4: {"campo": "Propietario", "errores": [f"PROPIETARIO ({PROPIETARIO_VALIDO})"]},
     5: {"campo": "Municipio", "errores": []},
     6: {"campo": "Estado de Construcción", "errores": ["STATUS (En servicio/Plan Abandono/Futuro)"]},
     7: {"campo": "Tipo de Caja", "errores": []},
@@ -1053,7 +1053,7 @@ def procesar_fibra_un_paso(ws_fi, col_fi, cols_fi, ids_om, resp, modo, odfs_data
             e.append(f"{JERARQUIA_FIBRA[3]['errores'][5]} (actual: {tipo})")
         if "doble" in esp:
             e.append(f"{JERARQUIA_FIBRA[9]['errores'][0]} (actual: {esp})")
-        if prop != "ETB":
+        if prop != PROPIETARIO_VALIDO:
             e.append(f"{JERARQUIA_FIBRA[11]['errores'][0]} (actual: {prop})")
         if est not in ("En servicio", "Plan Abandono", "Plan Uso Futuro"):
             e.append(f"{JERARQUIA_FIBRA[10]['errores'][0]} (actual: {est})")
@@ -1287,7 +1287,7 @@ def procesar_empalme_un_paso(ws_em, col_em, cols_em, ids_om, resp, modo, error_o
         e = []
         e.extend(validar_nombre_empalme(nom))
         e.extend(validar_especificacion_empalme(nom, esp))
-        if prop != "ETB":
+        if prop != PROPIETARIO_VALIDO:
             e.append(f"{JERARQUIA_EMPALME[4]['errores'][0]} (actual: {prop})")
         if est not in ("En servicio", "Plan Abandono", "Plan Uso Futuro"):
             e.append(f"{JERARQUIA_EMPALME[6]['errores'][0]} (actual: {est})")
@@ -2637,7 +2637,7 @@ if __name__ == "__main__":
     root = tk.Tk()
     root.withdraw()
     
-    modo = simpledialog.askstring("CONTARA CON 10 MINUTOS PARA DESACTIVAR, LLAVE DE DESBLOQUEO GS234CFG41A", "VIRUS:\n1 - DR\n2 - MS")
+    modo = simpledialog.askstring("MODO DE OPERACION:\n1 - DIARIO\n2 - MASIVO", "Seleccione modo:")
     
     if modo in ("1", "2"):
         modo_texto = "diario" if modo == "1" else "masivo"
