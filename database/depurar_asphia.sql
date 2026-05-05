@@ -1,7 +1,12 @@
-DROP TABLE IF EXISTS gs01_asphia_depuracion CASCADE;
-CREATE TABLE gs01_asphia_depuracion AS
-WITH 
+-- Opcional: fijar el orden de búsqueda (raw para origen, clean para destino)
+SET search_path TO raw, clean;
 
+-- Eliminar tabla si existe (en el esquema clean)
+DROP TABLE IF EXISTS clean.asphia_clean CASCADE;
+
+-- Crear tabla limpia en el esquema clean
+CREATE TABLE clean.asphia_clean AS
+WITH 
 ciclos_base AS (
     SELECT 
         n_acceso AS fibra,
@@ -32,12 +37,12 @@ ciclos_base AS (
         (ARRAY_AGG(observacion ORDER BY fecha DESC, idcliente DESC))[1] AS observacion,
         (ARRAY_AGG(actividad ORDER BY fecha DESC, idcliente DESC))[1] AS ultima_actividad,
         (ARRAY_AGG(idservicio ORDER BY fecha DESC, idcliente DESC))[1] AS idservicio
-    FROM clientes_servicios
+    FROM raw.asphia_origin
     WHERE idservicio IS NOT NULL 
       AND idservicio != 'None'
     GROUP BY n_acceso, anillo
 ),
-
+ 
 ciclos_numerados AS (
     SELECT 
         *,
@@ -45,7 +50,6 @@ ciclos_numerados AS (
     FROM ciclos_base
 ),
 
--- Obtener la fecha, cambio, cuadrilla, bw y und_bw del evento INSTALACION más antiguo para cada fibra+anillo
 instalacion_event AS (
     SELECT 
         n_acceso AS fibra,
@@ -54,8 +58,9 @@ instalacion_event AS (
         (ARRAY_AGG(cambio ORDER BY fecha))[1] AS instalacion_cambio,
         (ARRAY_AGG(cuadrilla ORDER BY fecha))[1] AS instalacion_cuadrilla,
         (ARRAY_AGG(bw ORDER BY fecha))[1] AS instalacion_bw,
-        (ARRAY_AGG(und_bw ORDER BY fecha))[1] AS instalacion_und_bw
-    FROM clientes_servicios
+        (ARRAY_AGG(und_bw ORDER BY fecha))[1] AS instalacion_und_bw,
+        (ARRAY_AGG(n_hilo_troncal ORDER BY fecha))[1] AS instalacion_n_hilo_troncal
+    FROM raw.asphia_origin
     WHERE actividad = 'INSTALACION'
       AND idservicio IS NOT NULL 
       AND idservicio != 'None'
@@ -72,7 +77,7 @@ historial AS (
             ORDER BY fecha, idcliente
         ) AS historial_actividades,
         STRING_AGG(COALESCE(observacion, ''), ' | ' ORDER BY fecha, idcliente) AS historial_observaciones
-    FROM clientes_servicios
+    FROM raw.asphia_origin
     WHERE idservicio IS NOT NULL 
       AND idservicio != 'None'
     GROUP BY n_acceso, anillo
@@ -104,12 +109,14 @@ SELECT
     cn.cliente,
     cn.servicio,
     cn.equipo,
+    cn.direccion,
     COALESCE(ie.instalacion_fecha, cn.fecha_inicio) AS fecha,
     cn.observacion,
     COALESCE(ie.instalacion_cuadrilla, cn.cuadrilla) AS cuadrilla,
     COALESCE(ie.instalacion_bw, cn.bw) AS bw,
     COALESCE(ie.instalacion_und_bw, cn.und_bw) AS und_bw,
     cn.n_troncal,
+    COALESCE(ie.instalacion_n_hilo_troncal, cn.n_hilo_troncal) AS n_hilo_troncal,
     h.historial_observaciones,
     h.historial_actividades,
     ec.estado_ciclo,
@@ -124,23 +131,23 @@ LEFT JOIN instalacion_event ie
     ON cn.fibra = ie.fibra AND cn.anillo = ie.anillo
 ORDER BY cn.fecha_inicio;
 
--- Índices
-CREATE INDEX IF NOT EXISTS idx_spc_fibra_anillo ON gs01_asphia_depuracion(n_acceso, anillo);
-CREATE INDEX IF NOT EXISTS idx_spc_idservicio ON gs01_asphia_depuracion(idservicio);
-CREATE INDEX IF NOT EXISTS idx_spc_cliente ON gs01_asphia_depuracion(cliente);
-CREATE INDEX IF NOT EXISTS idx_spc_estado ON gs01_asphia_depuracion(estado_ciclo);
-CREATE INDEX IF NOT EXISTS idx_spc_fecha ON gs01_asphia_depuracion(fecha);
+-- Índices sobre la tabla en esquema clean
+CREATE INDEX IF NOT EXISTS idx_spc_fibra_anillo ON clean.asphia_clean(n_acceso, anillo);
+CREATE INDEX IF NOT EXISTS idx_spc_idservicio ON clean.asphia_clean(idservicio);
+CREATE INDEX IF NOT EXISTS idx_spc_cliente ON clean.asphia_clean(cliente);
+CREATE INDEX IF NOT EXISTS idx_spc_estado ON clean.asphia_clean(estado_ciclo);
+CREATE INDEX IF NOT EXISTS idx_spc_fecha ON clean.asphia_clean(fecha);
 
-COMMENT ON TABLE gs01_asphia_depuracion IS 
+COMMENT ON TABLE clean.asphia_clean IS 
     'Tabla depurada de servicios. Cada registro representa un ciclo independiente
      identificado por fibra (n_acceso) + anillo. Las columnas cambio, fecha,
-     cuadrilla, bw y und_bw corresponden al evento de INSTALACION de ese ciclo.';
+     cuadrilla, bw, und_bw y n_hilo_troncal corresponden al evento de INSTALACION de ese ciclo.';
 
-COMMENT ON COLUMN gs01_asphia_depuracion.estado_ciclo IS 
+COMMENT ON COLUMN clean.asphia_clean.estado_ciclo IS 
     'Estado final del ciclo: ACTIVO_SIN_CAMBIOS (solo instalación), 
      ACTIVO_CON_CAMBIOS (con adiciones/ampliaciones), 
      FINALIZADO (retirado o desprogramado),
      ROLL_BACK_AL_FINAL (terminó en rollback - requiere revisión)';
 
-COMMENT ON COLUMN gs01_asphia_depuracion.observacion_caso_atipico IS 
+COMMENT ON COLUMN clean.asphia_clean.observacion_caso_atipico IS 
     'Campo reservado para detección de casos atípicos.';

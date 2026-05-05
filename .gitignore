@@ -9,6 +9,7 @@ docs/
 output/
 delete/
 database/output/
+scripts/monitoring/private_collections/
 
 src/quality/OBSOLETOS/
 src/private_collections/AttOthers/ACTUALIZACIONES/Cargues_ArcGIS/
@@ -34,6 +35,7 @@ scripts/05_ATAJOS/
 #ARCHIVOS DE CONFIGURACIÓN Y CREDENCIALES
 scripts/database/01_TZ_MS_GS.py
 scripts/database/table_bulk merge_centrales.py
+
 
 
 # ARCHIVOS GRANDES DETECTADOS
