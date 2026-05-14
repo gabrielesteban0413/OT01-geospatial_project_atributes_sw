@@ -1,6 +1,8 @@
 import pyautogui
 import pyperclip
 import win32com.client as win32
+import win32gui
+import win32con
 import time
 import keyboard
 import re
@@ -20,6 +22,31 @@ pyautogui.PAUSE = 0.0
 pausado = False
 detener = False
 
+# Palabras clave para detectar ventanas emergentes
+POPUP_KEYWORDS = ["información", "mensaje", "error", "advertencia", "confirmar", "warning", "message", "info"]
+
+def verificar_y_cerrar_popup():
+    """Busca ventanas emergentes por título y cierra la primera que encuentre presionando Enter."""
+    def enum_callback(hwnd, extra):
+        if win32gui.IsWindowVisible(hwnd):
+            title = win32gui.GetWindowText(hwnd)
+            if title and any(keyword in title.lower() for keyword in POPUP_KEYWORDS):
+                extra.append(hwnd)
+        return True
+
+    ventanas = []
+    win32gui.EnumWindows(enum_callback, ventanas)
+    if ventanas:
+        # Activar la ventana y enviar Enter
+        hwnd = ventanas[0]
+        win32gui.SetForegroundWindow(hwnd)
+        time.sleep(0.05)
+        pyautogui.press('enter')
+        time.sleep(0.1)
+        print("[POPUP] Cerrado con Enter")
+        return True
+    return False
+
 def pausar_o_reanudar():
     global pausado
     pausado = not pausado
@@ -37,6 +64,7 @@ def esperar_si_pausado():
     global detener, pausado
     while pausado and not detener:
         time.sleep(0.05)
+        verificar_y_cerrar_popup()  # También revisa popups mientras está pausado
         if keyboard.is_pressed('q'):
             detener = True
             break
@@ -47,6 +75,7 @@ def esperar_con_control(segundos):
         if detener:
             return False
         esperar_si_pausado()
+        verificar_y_cerrar_popup()  # Detecta popups en cada ciclo de espera
         time.sleep(0.05)
     return not detener
 
@@ -78,10 +107,14 @@ def tiene_formato_fecha(texto):
     return re.match(patron, texto) is not None
 
 def obtener_ultimo_valor_lista():
+    """
+    Obtiene el último valor de la lista de resultados.
+    Si el valor no contiene '/' o está vacío, retorna '|'.
+    """
     if detener:
         return ""
     esperar_si_pausado()
-    
+
     pyautogui.click(COORD_INICIO_LISTA[0], COORD_INICIO_LISTA[1])
     if not esperar_con_control(0.1): return ""
     pyautogui.hotkey('ctrl', 'end')
@@ -90,8 +123,11 @@ def obtener_ultimo_valor_lista():
     if not esperar_con_control(0.1): return ""
     valor = pyperclip.paste().strip()
     if tiene_formato_fecha(valor):
-        return valor
-    
+        if '/' in valor:
+            return valor
+        else:
+            return "|"
+
     pyautogui.click(COORD_INICIO_LISTA[0], COORD_INICIO_LISTA[1])
     if not esperar_con_control(0.1): return ""
     ultimo_valor = ""
@@ -104,8 +140,12 @@ def obtener_ultimo_valor_lista():
         valor_actual = pyperclip.paste().strip()
         if valor_actual == ultimo_valor: break
         ultimo_valor = valor_actual
-        if tiene_formato_fecha(valor_actual): return valor_actual
-    
+        if tiene_formato_fecha(valor_actual):
+            if '/' in valor_actual:
+                return valor_actual
+            else:
+                return "|"
+
     pyautogui.click(COORD_INICIO_LISTA[0], COORD_INICIO_LISTA[1])
     if not esperar_con_control(0.1): return ""
     ultimo_valor = ""
@@ -118,8 +158,14 @@ def obtener_ultimo_valor_lista():
         valor_actual = pyperclip.paste().strip()
         if valor_actual == ultimo_valor: break
         ultimo_valor = valor_actual
-        if tiene_formato_fecha(valor_actual): return valor_actual
-    return ultimo_valor if ultimo_valor else ""
+        if tiene_formato_fecha(valor_actual):
+            if '/' in valor_actual:
+                return valor_actual
+            else:
+                return "|"
+
+    # Si al final no se encontró una fecha con '/', devolvemos el último valor o '|'
+    return ultimo_valor if ultimo_valor and '/' in ultimo_valor else "|"
 
 def limpiar_campo():
     if detener: return
@@ -132,33 +178,42 @@ def procesar_fila(hoja, fila, id_texto, idx_owner, total, indice, es_prueba=Fals
     global detener
     if detener:
         return False
-    
+
     print(f"[{indice}/{total}] ID {id_texto} (fila {fila})", end=" ")
     pyperclip.copy(id_texto)
-    
+
     esperar_si_pausado()
     if detener: return False
-    
+
     # Cambiar al SW
     pyautogui.hotkey('alt', 'tab')
     if not esperar_con_control(0.15): return False
-    
+
     limpiar_campo()
+    verificar_y_cerrar_popup()
     if detener: return False
-    
+
     pyautogui.click(COORD_PEGAR_ID[0], COORD_PEGAR_ID[1])
     pyautogui.hotkey('ctrl', 'v')
     if not esperar_con_control(0.5): return False
-    
+
     pyautogui.click(COORD_BUSCAR[0], COORD_BUSCAR[1])
+    # Posible popup después de buscar
+    verificar_y_cerrar_popup()
     if not esperar_con_control(0.8): return False
-    
+
     esperar_si_pausado()
     if detener: return False
-    
+
     ultimo_valor = obtener_ultimo_valor_lista()
+    # Verificar nuevamente por si apareció un popup durante la lectura
+    verificar_y_cerrar_popup()
     if detener: return False
-    
+
+    # Validación final: si no contiene '/' o está vacío, asignar '|'
+    if not ultimo_valor or '/' not in ultimo_valor:
+        ultimo_valor = "|"
+
     if es_prueba:
         print(f"\n   Capturado: '{ultimo_valor}'")
         opcion = input("   s=guardar, n=omitir, m=escribir manual: ").lower()
@@ -169,7 +224,7 @@ def procesar_fila(hoja, fila, id_texto, idx_owner, total, indice, es_prueba=Fals
             ultimo_valor = input("   Escribe valor: ").strip()
     else:
         print("-> OK", end=" ")
-    
+
     pyautogui.hotkey('alt', 'tab')
     if not esperar_con_control(0.1): return False
     hoja.Cells(fila, idx_owner).Value = ultimo_valor
@@ -183,25 +238,25 @@ def procesar_excel():
     global detener, pausado
     detener = False
     pausado = False
-    
+
     excel, wb = obtener_excel_abierto()
     if not excel or not wb: return
-    
+
     try:
         hoja = wb.Sheets(NOMBRE_HOJA)
     except:
         print(f"Hoja '{NOMBRE_HOJA}' no existe.")
         return
-    
+
     encabezados = [hoja.Cells(1, col).Value for col in range(1, 100) if hoja.Cells(1, col).Value]
     if COLUMNA_ID not in encabezados or COLUMNA_OWNER not in encabezados or COLUMNA_ELEMENT not in encabezados:
         print("No se encontraron las columnas requeridas")
         return
-    
+
     idx_id = encabezados.index(COLUMNA_ID) + 1
     idx_owner = encabezados.index(COLUMNA_OWNER) + 1
     idx_element = encabezados.index(COLUMNA_ELEMENT) + 1
-    
+
     print("Buscando primera fila visible con OWNER vacío...")
     primera_fila = None
     fila = 2
@@ -212,14 +267,14 @@ def procesar_excel():
             primera_fila = fila
             break
         fila += 1
-    
+
     if primera_fila is None:
         print("No se encontró ninguna fila visible con OWNER vacío.")
         return
-    
+
     valor_element_ref = str(hoja.Cells(primera_fila, idx_element).Value).strip()
     print(f"Primera fila visible: {primera_fila}, ELEMENT = '{valor_element_ref}'")
-    
+
     print("Recopilando filas del bloque...")
     filas_a_procesar = []
     fila = primera_fila
@@ -235,15 +290,15 @@ def procesar_excel():
         fila += 1
         if len(filas_a_procesar) % 100 == 0:
             print(f"   {len(filas_a_procesar)} filas encontradas...")
-    
+
     if not filas_a_procesar:
         print("No hay filas visibles para procesar en este bloque.")
         return
-    
+
     total = len(filas_a_procesar)
     print(f"\nTotal de filas a procesar: {total}")
     print("[CONTROL] p=pausa, q=detener\n")
-    
+
     if input("¿Prueba solo el primer ID? (s/n): ").lower() == 's':
         input("Prepara el SW y presiona ENTER...")
         fila, id_texto = filas_a_procesar[0]
@@ -263,7 +318,7 @@ def procesar_excel():
             esperar_si_pausado()
             if detener: break
             procesar_fila(hoja, f, txt, idx_owner, total, i, es_prueba=False)
-    
+
     print("\nProceso finalizado.")
 
 if __name__ == "__main__":

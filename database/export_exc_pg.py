@@ -87,13 +87,13 @@ def bulk_insert_dataframe(df: pd.DataFrame, table_name: str, engine, chunk_size:
 def main():
     base_dir = Path(r"C:\A_GS1_PROYECTOS\0_Documents_gs")
     env_path = base_dir / ".env"
-    excel_path = base_dir / "database" / "output" / "03-asph_report_origin.xlsx"
+    excel_path = base_dir / "database" / "output" / "03_cardidwg_excel.xlsx"
 
     db_config = load_db_config(env_path)
-    df = read_excel_sheet(excel_path, sheet_name="Hoja1")
+    df = read_excel_sheet(excel_path, sheet_name="Archivos_DWG")
     engine = create_postgres_engine(db_config)
 
-    table_name = "asphia_origin"
+    table_name = "cardiseño_origin"
     create_table_from_dataframe(df, table_name, engine)
     bulk_insert_dataframe(df, table_name, engine)
 

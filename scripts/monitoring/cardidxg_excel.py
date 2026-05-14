@@ -1,40 +1,52 @@
 import os
 import pandas as pd
-from datetime import datetime
-from concurrent.futures import ThreadPoolExecutor, as_completed
 import subprocess
+import tempfile
+from pathlib import Path
+from dotenv import load_dotenv
 
-ruta_base = r"\\atlas\VP_DESARROLLO_DE_RED_Y_SERVICIOS\G_Aprovisionamiento_Servicios_Datos_Internet\D3910_Carr_Diseno_fo"
-ruta_salida = r"C:\A_GS1_PROYECTOS\0_Documents_gs\database\output"
-os.makedirs(ruta_salida, exist_ok=True)
+load_dotenv()
 
-def escanear_dwg_windows_api(ruta):
-    archivos = []
+GS_BASE_CARD = os.getenv("GS_BASE_CARD")
+GS_BASE_PATH = os.getenv("GS_BASE_PATH")
+
+if not GS_BASE_CARD:
+    raise ValueError("Variable GS_BASE_CARD no encontrada en .env")
+if not GS_BASE_PATH:
+    raise ValueError("Variable GS_BASE_PATH no encontrada en .env")
+
+ruta_base = Path(GS_BASE_CARD)
+ruta_salida = Path(GS_BASE_PATH)
+ruta_salida.mkdir(parents=True, exist_ok=True)
+
+def obtener_archivos_dwg_con_metadatos():
+    temp_csv = tempfile.NamedTemporaryFile(delete=False, suffix='.csv', mode='w', encoding='utf-8')
+    temp_csv.close()
+    
+    ps_command = f"""
+    $results = Get-ChildItem -Path "{ruta_base}" -Recurse -File -Filter "*.dwg" -ErrorAction SilentlyContinue | ForEach-Object {{
+        [PSCustomObject]@{{
+            ARCHIVO = $_.Name
+            RUTA_COMPLETA = $_.FullName
+            RUTA_CARPETA = $_.DirectoryName
+            TAMAÑO_MB = [math]::Round($_.Length / 1MB, 2)
+            FECHA_MODIFICACION = $_.LastWriteTime.ToString('yyyy-MM-dd HH:mm:ss')
+            FECHA_CREACION = $_.CreationTime.ToString('yyyy-MM-dd HH:mm:ss')
+        }}
+    }}
+    $results | Export-Csv -Path "{temp_csv.name}" -NoTypeInformation -Encoding UTF8
+    """
     try:
-        cmd = f'dir "{ruta}" /s /b *.dwg *.DWG 2>nul'
-        result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
-        archivos = [line.strip() for line in result.stdout.splitlines() if line.strip()]
-    except:
-        pass
-    return archivos
-
-def obtener_metadata_rapido(ruta_archivo):
-    try:
-        stat = os.stat(ruta_archivo)
-        ruta_carpeta = os.path.dirname(ruta_archivo)
-        return {
-            'ARCHIVO': os.path.basename(ruta_archivo),
-            'RUTA_COMPLETA': ruta_archivo,
-            'RUTA_CARPETA': ruta_carpeta,
-            'TAMAÑO_MB': round(stat.st_size / (1024 * 1024), 2),
-            'FECHA_MODIFICACION': datetime.fromtimestamp(stat.st_mtime).strftime('%Y-%m-%d %H:%M:%S'),
-            'FECHA_CREACION': datetime.fromtimestamp(stat.st_ctime).strftime('%Y-%m-%d %H:%M:%S')
-        }
-    except:
-        return None
+        subprocess.run(["powershell", "-Command", ps_command], check=True, capture_output=True, text=True)
+        df = pd.read_csv(temp_csv.name, encoding='utf-8')
+        os.unlink(temp_csv.name)
+        return df
+    except subprocess.CalledProcessError as e:
+        print(f"Error en PowerShell: {e.stderr}")
+        return pd.DataFrame()
 
 def crear_buscador_batch(df):
-    buscador_path = os.path.join(ruta_salida, "BUSCADOR_DWG.bat")
+    buscador_path = ruta_salida / "BUSCADOR_DWG.bat"
     with open(buscador_path, 'w', encoding='utf-8') as f:
         f.write("@echo off\n")
         f.write("title BUSCADOR DE ARCHIVOS DWG\n")
@@ -73,32 +85,27 @@ def crear_buscador_batch(df):
     return buscador_path
 
 def main():
-    archivos_dwg = list(set(escanear_dwg_windows_api(ruta_base)))
-    if not archivos_dwg:
+    print("Obteniendo archivos DWG y sus metadatos usando PowerShell (puede tomar varios minutos)...")
+    df = obtener_archivos_dwg_con_metadatos()
+    
+    if df.empty:
+        print("No se encontraron archivos DWG o hubo un error.")
         return
     
-    datos = []
-    with ThreadPoolExecutor(max_workers=20) as executor:
-        futures = {executor.submit(obtener_metadata_rapido, f): f for f in archivos_dwg}
-        for future in as_completed(futures):
-            resultado = future.result()
-            if resultado:
-                datos.append(resultado)
-    
-    df = pd.DataFrame(datos)
     df = df.drop_duplicates(subset=['RUTA_COMPLETA'])
     df = df.sort_values('ARCHIVO')
     
-    ruta_excel = os.path.join(ruta_salida, "03_cardidwg_excel.xlsx")
+    ruta_excel = ruta_salida / "03_cardidwg_excel.xlsx"
     with pd.ExcelWriter(ruta_excel, engine='openpyxl') as writer:
         df.to_excel(writer, sheet_name='Archivos_DWG', index=False)
     
     buscador_path = crear_buscador_batch(df)
-    escritorio = os.path.join(os.environ['USERPROFILE'], 'Desktop')
-    with open(os.path.join(escritorio, "BUSCADOR_DWG.bat"), 'w', encoding='utf-8') as f:
+    escritorio = Path(os.environ['USERPROFILE']) / "Desktop"
+    acceso_directo = escritorio / "BUSCADOR_DWG.bat"
+    with open(acceso_directo, 'w', encoding='utf-8') as f:
         f.write(f'@start "" "{buscador_path}"')
     
-    print(f" Proceso completado: {len(df)} archivos DWG encontrados")
+    print(f"Proceso completado: {len(df)} archivos DWG encontrados")
 
 if __name__ == "__main__":
     main()
