@@ -7,15 +7,15 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-GS_BASE_CARD = os.getenv("GS_BASE_CARD")
+GS_BASE_CARDI = os.getenv("GS_BASE_CARDI")
 GS_BASE_PATH = os.getenv("GS_BASE_PATH")
 
-if not GS_BASE_CARD:
-    raise ValueError("Variable GS_BASE_CARD no encontrada en .env")
+if not GS_BASE_CARDI:
+    raise ValueError("Variable GS_BASE_CARDI no encontrada en .env")
 if not GS_BASE_PATH:
     raise ValueError("Variable GS_BASE_PATH no encontrada en .env")
 
-ruta_base = Path(GS_BASE_CARD)
+ruta_base = Path(GS_BASE_CARDI)
 ruta_salida = Path(GS_BASE_PATH)
 ruta_salida.mkdir(parents=True, exist_ok=True)
 
