@@ -29,13 +29,22 @@ ARCHIVOS_CONFIG = [
         'archivo': '03-linea_cables_responsables.xlsx',
         'hoja': 'TD ACCES0S',
         'tabla': 'corporativo_origin',
-        'esquema': 'raw'
+        'esquema': 'raw',
+        'claves_unicas': None
     },
     {
         'archivo': '03-asph_report_origin.xlsx',
         'hoja': 'Hoja1',
         'tabla': 'asphia_origin',
-        'esquema': 'raw'
+        'esquema': 'raw',
+        'claves_unicas': None
+    },
+    {
+        'archivo': '03-base odf´s.xlsx',
+        'hoja': 'Hoja1',
+        'tabla': 'baseodf_origin',
+        'esquema': 'raw',
+        'claves_unicas': None
     }
 ]
 
@@ -112,12 +121,13 @@ def actualizar_control(conn: psycopg2.extensions.connection, ruta_archivo: str, 
         conn.commit()
 
 
-def cargar_excel_a_postgres(
+def cargar_excel_incremental(
     conn: psycopg2.extensions.connection,
     ruta_excel: str,
     nombre_hoja: str,
     esquema_destino: str,
     tabla_destino: str,
+    claves_unicas: list = None,
     verificar_cambios: bool = True
 ) -> tuple:
     if not os.path.exists(ruta_excel):
@@ -133,27 +143,81 @@ def cargar_excel_a_postgres(
 
     df = pd.read_excel(ruta_excel, sheet_name=nombre_hoja, dtype=str, engine='openpyxl')
     df.columns = generar_columnas_unicas(df.columns)
-
+    
     with conn.cursor() as cur:
         cur.execute(f"CREATE SCHEMA IF NOT EXISTS {esquema_destino}")
-        cur.execute(f"DROP TABLE IF EXISTS {esquema_destino}.{tabla_destino} CASCADE")
-        cols_def = ', '.join([f'"{col}" TEXT' for col in df.columns])
-        cur.execute(f"CREATE TABLE {esquema_destino}.{tabla_destino} ({cols_def})")
-
-        buffer = StringIO()
-        df.to_csv(buffer, sep='\t', index=False, header=False, na_rep='\\N')
-        buffer.seek(0)
-        sql_copy = f"COPY {esquema_destino}.{tabla_destino} FROM STDIN (FORMAT csv, DELIMITER '\t', NULL '\\N')"
-        cur.copy_expert(sql_copy, buffer)
-
+        
+        if not claves_unicas:
+            cur.execute(f"DROP TABLE IF EXISTS {esquema_destino}.{tabla_destino} CASCADE")
+            cols_def = ', '.join([f'"{col}" TEXT' for col in df.columns])
+            cur.execute(f"CREATE TABLE {esquema_destino}.{tabla_destino} ({cols_def})")
+            
+            buffer = StringIO()
+            df.to_csv(buffer, sep='\t', index=False, header=False, na_rep='\\N')
+            buffer.seek(0)
+            sql_copy = f"COPY {esquema_destino}.{tabla_destino} FROM STDIN (FORMAT csv, DELIMITER '\t', NULL '\\N')"
+            cur.copy_expert(sql_copy, buffer)
+            
+            resultado = len(df)
+        
+        else:
+            claves_validas = [k for k in claves_unicas if k in df.columns]
+            if not claves_validas:
+                raise ValueError(f"Ninguna de las claves únicas {claves_unicas} encontrada en las columnas: {df.columns.tolist()}")
+            
+            cols_def = ', '.join([f'"{col}" TEXT' for col in df.columns])
+            cur.execute(f"""
+                CREATE TABLE IF NOT EXISTS {esquema_destino}.{tabla_destino} (
+                    {cols_def}
+                )
+            """)
+            
+            idx_name = f"idx_{tabla_destino}_unique"
+            col_idx = ', '.join([f'"{k}"' for k in claves_validas])
+            cur.execute(f"""
+                DO $$
+                BEGIN
+                    IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = '{idx_name}') THEN
+                        CREATE UNIQUE INDEX {idx_name} 
+                        ON {esquema_destino}.{tabla_destino} ({col_idx});
+                    END IF;
+                END $$;
+            """)
+            
+            temp_table = f"{tabla_destino}_temp_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            cur.execute(f"CREATE TEMP TABLE {temp_table} (LIKE {esquema_destino}.{tabla_destino} INCLUDING DEFAULTS)")
+            
+            buffer = StringIO()
+            df.to_csv(buffer, sep='\t', index=False, header=False, na_rep='\\N')
+            buffer.seek(0)
+            sql_copy = f"COPY {temp_table} FROM STDIN (FORMAT csv, DELIMITER '\t', NULL '\\N')"
+            cur.copy_expert(sql_copy, buffer)
+            
+            conflict_cols = ', '.join([f'"{k}"' for k in claves_validas])
+            update_cols = ', '.join([f'"{col}" = EXCLUDED."{col}"' for col in df.columns])
+            insert_cols = ', '.join([f'"{col}"' for col in df.columns])
+            
+            cur.execute(f"""
+                INSERT INTO {esquema_destino}.{tabla_destino} ({insert_cols})
+                SELECT {insert_cols} FROM {temp_table}
+                ON CONFLICT ({conflict_cols}) DO UPDATE SET
+                    {update_cols}
+            """)
+            
+            cur.execute(f"SELECT COUNT(*) FROM {temp_table}")
+            resultado = cur.fetchone()[0]
+            
+            cur.execute(f"DROP TABLE {temp_table}")
+        
         if verificar_cambios:
             actualizar_control(conn, ruta_excel, fecha)
-
+        
         conn.commit()
-
+        
         cur.execute(f"SELECT COUNT(*) FROM {esquema_destino}.{tabla_destino}")
         total = cur.fetchone()[0]
-    return True, total
+    
+    return True, resultado
 
 
 def main() -> None:
@@ -166,18 +230,21 @@ def main() -> None:
             if not os.path.exists(ruta):
                 print(f"Archivo no encontrado: {ruta}")
                 continue
-            cargado, filas = cargar_excel_a_postgres(
+            
+            cargado, filas = cargar_excel_incremental(
                 conn,
                 ruta,
                 cfg['hoja'],
                 cfg['esquema'],
                 cfg['tabla'],
+                claves_unicas=cfg.get('claves_unicas'),
                 verificar_cambios=True
             )
             if cargado:
-                print(f"{cfg['archivo']} -> {cfg['esquema']}.{cfg['tabla']}: {filas} filas")
+                modo = "incremental (UPSERT)" if cfg.get('claves_unicas') else "completa (DROP TABLE)"
+                print(f"{cfg['archivo']} -> {cfg['esquema']}.{cfg['tabla']}: {filas} filas procesadas ({modo})")
             else:
-                print(f"{cfg['archivo']} sin cambios, no se recargó")
+                print(f"{cfg['archivo']} sin cambios")
     finally:
         conn.close()
 

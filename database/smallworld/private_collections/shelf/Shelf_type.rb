@@ -2,7 +2,7 @@ _block
     ruta_fuente << "C:\\A_GS1_PROYECTOS\\0_Documents_gs\\database\\smallworld\\private_collections\\00_out.txt"
 
     vista << gis_program_manager.cached_dataset(:gis)
-    vista.checkpoint("SHELF_TY")
+    vista.checkpoint("SH_TP_MS")
     mit_shelfs << vista.collection(:mit_shelf)
 
     archivo_fuente << external_text_input_stream.new(ruta_fuente)
@@ -60,7 +60,7 @@ _block
     _endloop
     archivo_fuente.close()
 
-    show("--------------GS--EDIT-SHELF-TYPE----------.")
+    show("--------------GS--EDIT-SHELF-TYPE--V02----------.")
     show("exitosos: ", contador_exitosos)
     show("fallidos: ", contador_fallidos)
 

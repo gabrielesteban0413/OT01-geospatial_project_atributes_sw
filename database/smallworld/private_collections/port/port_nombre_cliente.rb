@@ -1,5 +1,5 @@
 _block
-    ruta_fuente << "C:\\A_GS1_PROYECTOS\\0_Documents_gs\\scripts\\monitoring\\private_collections\\00_out.txt"
+    ruta_fuente << "C:\A_GS1_PROYECTOS\0_Documents_gs\database\smallworld\private_collections\00_out.txt"
     vista << gis_program_manager.cached_dataset(:gis)
     vista.checkpoint("PT_NM_MS")  
     ports << vista.collection(:mit_rme_port)  
@@ -59,7 +59,7 @@ _block
     _endloop
     archivo_fuente.close()
 
-    show("--------------GS--EDIT--SPEC--------.")
+    show("--------------GS--EDIT--SPEC--V02--------.")
     show("exitosos: ", contador_exitosos)
     show("fallidos: ", contador_fallidos)
 _endblock

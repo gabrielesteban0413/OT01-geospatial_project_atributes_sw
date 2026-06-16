@@ -550,6 +550,77 @@ def buscar_id_backbone_directo(equipo, puerto, dict_busqueda, tiene_xg_por_slot)
                 return id_val
     return None
 
+def consolidate_duplicate_rows(df, group_except_cols, join_map=None):
+    """
+    Consolida filas que son iguales en todas las columnas excepto las indicadas.
+    
+    Parámetros:
+    - df: DataFrame a consolidar
+    - group_except_cols: lista de nombres de columnas que pueden tener múltiples valores
+                         (se concatenarán). El resto de columnas se usan como clave de agrupación.
+    - join_map: dict opcional {columna: separador} para personalizar el separador.
+                Por defecto: '+' para 'BANDEJA', '°' para el resto.
+    """
+    if df.empty:
+        return df
+    
+    # Separadores por defecto
+    default_sep = '°'
+    if join_map is None:
+        join_map = {}
+    
+    all_cols = df.columns.tolist()
+    group_cols = [c for c in all_cols if c not in group_except_cols]
+    
+    # Función para unir valores únicos ordenados (especial para BANDEJA)
+    def join_bandeja(series):
+        vals = [str(v) for v in series.dropna()]
+        if not vals:
+            return ''
+        # Orden numérico si es posible
+        try:
+            nums = sorted(int(v) for v in vals if v.isdigit())
+            return '+'.join(str(n) for n in nums)
+        except:
+            return '+'.join(sorted(vals))
+    
+    def join_generic(series, sep):
+        vals = [str(v) for v in series.dropna()]
+        # Eliminar duplicados respetando orden
+        seen = set()
+        unique = []
+        for v in vals:
+            if v not in seen:
+                seen.add(v)
+                unique.append(v)
+        return sep.join(unique) if unique else ''
+    
+    rows = []
+    for _, group in df.groupby(group_cols, as_index=False, dropna=False):
+        row = {}
+        # Columnas clave (todas iguales)
+        for col in group_cols:
+            row[col] = group[col].iloc[0]
+        # Columnas a consolidar
+        for col in group_except_cols:
+            if col not in df.columns:
+                continue
+            if col == 'BANDEJA':
+                row[col] = join_bandeja(group[col])
+            else:
+                sep = join_map.get(col, default_sep)
+                row[col] = join_generic(group[col], sep)
+        # Otras columnas que pudieran haber quedado fuera (por si acaso)
+        other_cols = [c for c in all_cols if c not in group_cols and c not in group_except_cols]
+        for col in other_cols:
+            if group[col].nunique() > 1:
+                row[col] = join_generic(group[col], '°')
+            else:
+                row[col] = group[col].iloc[0]
+        rows.append(row)
+    
+    return pd.DataFrame(rows, columns=all_cols)
+
 def generar_hojas_op_y_ot(df_cabecera):
     try:
         dict_busqueda, tiene_xg_por_slot, pacheo_dict, id_a_id_bay = cargar_y_preprocesar_ports(RUTA_PORTS)
@@ -621,6 +692,15 @@ def generar_hojas_op_y_ot(df_cabecera):
             all_registros.extend(registros)
     df_op = pd.DataFrame(all_registros)
     df_op.columns = [c.upper() for c in df_op.columns]
+    
+    # Consolidar OP (si hay duplicados por POS_TOKEN)
+    if not df_op.empty:
+        op_cols_consolidar = ['POS DIV', 'ID_PORT_PACHEO', 'ID_PORT_CABECERA']
+        # Solo si realmente existen esas columnas
+        op_cols_existentes = [c for c in op_cols_consolidar if c in df_op.columns]
+        if op_cols_existentes:
+            df_op = consolidate_duplicate_rows(df_op, op_cols_existentes, join_map={'POS DIV': '+'})
+    
     try:
         df_port_sheet = pd.read_excel(RUTA_PORTS, sheet_name="Port", dtype=str)
         df_ot = procesar_odf_troncal(df_port_sheet)
@@ -1189,6 +1269,13 @@ def generar_hoja_is(ruta_cables, df_op, df_ot=None):
     df_procesado = pd.DataFrame(nuevas_filas)
     df_procesado.columns = [c.upper() for c in df_procesado.columns]
     df_procesado = validar_anillos_por_fibra_y_hilo(df_procesado)
+    
+    # Consolidar filas duplicadas (mismo todo excepto BANDEJA, ID_PORT_PACHEO, ID_PORT_CABECERA, SINCRONIZA)
+    columnas_a_consolidar = ['BANDEJA', 'ID_PORT_PACHEO', 'ID_PORT_CABECERA', 'SINCRONIZA']
+    # Solo consolidar si las columnas existen
+    cols_consolidar_existentes = [c for c in columnas_a_consolidar if c in df_procesado.columns]
+    if cols_consolidar_existentes:
+        df_procesado = consolidate_duplicate_rows(df_procesado, cols_consolidar_existentes)
     
     column_order = [
         IS_COL_FIBRA,

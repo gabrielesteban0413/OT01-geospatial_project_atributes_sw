@@ -1,8 +1,8 @@
 _block
-    ruta_fuente << "C:\\A_GS1_PROYECTOS\\0_Documents_gs\\src\\private_collections\\InfraBuilding\\EDIT\\B01_name.txt"
+    ruta_fuente << "C:\A_GS1_PROYECTOS\0_Documents_gs\database\smallworld\private_collections\00_out.txt"
 
     vista << gis_program_manager.cached_dataset(:gis)
-    vista.checkpoint("building")
+    vista.checkpoint("ED_NM_MS")
     buildings << vista.collection(:building)
 
     archivo_fuente << external_text_input_stream.new(ruta_fuente)
@@ -60,7 +60,7 @@ _block
     _endloop
     archivo_fuente.close()
 
-    show("--------------GS--EDIT-FI-NAME---------.")
+    show("--------------GS--EDIT-FI-NAME--V02---------.")
     show("exitosos: ", contador_exitosos)
     show("fallidos: ", contador_fallidos)
 _endblock

@@ -16,24 +16,28 @@ COORD_BORRAR = (1125, 99)
 COORD_BUSCAR = (1197, 97)
 COORD_PEGAR_ID = (1095, 212)
 COORD_INICIO_LISTA = (766, 203)
+COORD_CERRAR_POPUP = (666, 377)  
 
 pyautogui.PAUSE = 0.0
 
 pausado = False
 detener = False
 
-
 POPUP_KEYWORDS = ["información", "mensaje", "error", "advertencia", "confirmar", "warning", "message", "info"]
 
+def extraer_primer_id(id_texto):
+    if ',' in str(id_texto):
+        primer_id = str(id_texto).split(',')[0].strip()
+        return primer_id
+    return str(id_texto).strip()
+
 def verificar_y_cerrar_popup():
-    """Cierra ventanas emergentes comunes (error, advertencia, etc.)"""
     def enum_callback(hwnd, extra):
         if win32gui.IsWindowVisible(hwnd):
             title = win32gui.GetWindowText(hwnd)
             if title and any(keyword in title.lower() for keyword in POPUP_KEYWORDS):
                 extra.append(hwnd)
         return True
-
     ventanas = []
     win32gui.EnumWindows(enum_callback, ventanas)
     if ventanas:
@@ -47,18 +51,12 @@ def verificar_y_cerrar_popup():
     return False
 
 def cerrar_popup_no_resultados():
-    """
-    Busca específicamente la ventana que contiene el texto 'no Port records'
-    y la cierra presionando Enter. Devuelve True si la encontró y cerró.
-    """
     def enum_windows_callback(hwnd, results):
         if win32gui.IsWindowVisible(hwnd):
-         
             title = win32gui.GetWindowText(hwnd)
             if title and ("no port records" in title.lower()):
                 results.append(hwnd)
                 return True
-           
             def enum_child(hwnd_child, child_results):
                 child_text = win32gui.GetWindowText(hwnd_child)
                 if "no port records" in child_text.lower():
@@ -68,16 +66,15 @@ def cerrar_popup_no_resultados():
             if child_windows:
                 results.append(hwnd)
         return True
-
     ventanas = []
     win32gui.EnumWindows(enum_windows_callback, ventanas)
     if ventanas:
         hwnd = ventanas[0]
         win32gui.SetForegroundWindow(hwnd)
         time.sleep(0.1)
-        pyautogui.press('enter')
+        pyautogui.click(COORD_CERRAR_POPUP[0], COORD_CERRAR_POPUP[1])
         time.sleep(0.2)
-        print("[POPUP] Ventana 'no encontrado' cerrada")
+        print("[POPUP] Ventana 'no encontrado' cerrada con clic")
         return True
     return False
 
@@ -91,8 +88,8 @@ def detener_proceso():
     detener = True
     print("\n[CONTROL] DETENIENDO")
 
-keyboard.add_hotkey('p', pausar_o_reanudar)
-keyboard.add_hotkey('q', detener_proceso)
+keyboard.add_hotkey('0', pausar_o_reanudar)
+keyboard.add_hotkey('1', detener_proceso)
 
 def esperar_si_pausado():
     global detener, pausado
@@ -118,6 +115,9 @@ def obtener_excel_abierto():
         excel = win32.GetActiveObject("Excel.Application")
         wb = excel.ActiveWorkbook
         print(f"Excel: {wb.Name}")
+        # Suprimir alertas y eventos para evitar diálogos
+        excel.DisplayAlerts = False
+        excel.EnableEvents = False
         return excel, wb
     except:
         print("No se pudo conectar a Excel. Asegúrate de tenerlo abierto.")
@@ -126,6 +126,8 @@ def obtener_excel_abierto():
             excel = win32.GetActiveObject("Excel.Application")
             wb = excel.ActiveWorkbook
             print(f"Excel conectado: {wb.Name}")
+            excel.DisplayAlerts = False
+            excel.EnableEvents = False
             return excel, wb
         except:
             return None, None
@@ -144,7 +146,6 @@ def obtener_ultimo_valor_lista():
     if detener:
         return ""
     esperar_si_pausado()
-
     pyautogui.click(COORD_INICIO_LISTA[0], COORD_INICIO_LISTA[1])
     if not esperar_con_control(0.1): return ""
     pyautogui.hotkey('ctrl', 'end')
@@ -157,7 +158,6 @@ def obtener_ultimo_valor_lista():
             return valor
         else:
             return "|"
-
     pyautogui.click(COORD_INICIO_LISTA[0], COORD_INICIO_LISTA[1])
     if not esperar_con_control(0.1): return ""
     ultimo_valor = ""
@@ -175,7 +175,6 @@ def obtener_ultimo_valor_lista():
                 return valor_actual
             else:
                 return "|"
-
     pyautogui.click(COORD_INICIO_LISTA[0], COORD_INICIO_LISTA[1])
     if not esperar_con_control(0.1): return ""
     ultimo_valor = ""
@@ -193,7 +192,6 @@ def obtener_ultimo_valor_lista():
                 return valor_actual
             else:
                 return "|"
-
     return ultimo_valor if ultimo_valor and '/' in ultimo_valor else "|"
 
 def limpiar_campo():
@@ -203,11 +201,41 @@ def limpiar_campo():
     pyautogui.hotkey('ctrl', 'a')
     pyautogui.press('delete')
 
-def procesar_fila(hoja, fila, id_texto, idx_owner, total, indice, es_prueba=False):
+def cerrar_dialogos_excel(excel):
+    """Cierra cualquier cuadro de diálogo que Excel pueda mostrar"""
+    try:
+        # Si hay un cuadro de diálogo modal, SendKeys Esc suele cerrarlo
+        excel.SendKeys("{ESC}")
+        time.sleep(0.2)
+    except:
+        pass
+
+def escribir_celda_seguro(hoja, fila, columna, valor, excel, wb, reintentos=3):
+    """Intenta escribir en la celda con reintentos y reconexión si falla"""
+    global detener
+    for intento in range(reintentos):
+        if detener:
+            return False
+        try:
+            hoja.Cells(fila, columna).Value = valor
+            return True
+        except Exception as e:
+            print(f"  Error al escribir (intento {intento+1}/{reintentos}): {e}")
+            if intento == reintentos - 1:
+                raise
+            # Cerrar posibles diálogos de Excel
+            cerrar_dialogos_excel(excel)
+            time.sleep(1)
+            # Reintentar sin reconectar primero
+            continue
+    return False
+
+def procesar_fila(hoja, fila, id_texto, idx_owner, total, indice, es_prueba=False, excel=None, wb=None):
     global detener
     if detener:
         return False
 
+    id_texto = extraer_primer_id(id_texto)
     print(f"[{indice}/{total}] ID {id_texto} (fila {fila})", end=" ")
     pyperclip.copy(id_texto)
 
@@ -226,16 +254,14 @@ def procesar_fila(hoja, fila, id_texto, idx_owner, total, indice, es_prueba=Fals
     if not esperar_con_control(0.5): return False
 
     pyautogui.click(COORD_BUSCAR[0], COORD_BUSCAR[1])
-    time.sleep(0.5)  
+    time.sleep(0.5)
 
-    
     if cerrar_popup_no_resultados():
         print("-> ID NO EXISTE")
         ultimo_valor = "|"
     else:
-       
         ultimo_valor = obtener_ultimo_valor_lista()
-        verificar_y_cerrar_popup()  
+        verificar_y_cerrar_popup()
 
     if not ultimo_valor or '/' not in ultimo_valor:
         ultimo_valor = "|"
@@ -253,7 +279,15 @@ def procesar_fila(hoja, fila, id_texto, idx_owner, total, indice, es_prueba=Fals
 
     pyautogui.hotkey('alt', 'tab')
     if not esperar_con_control(0.1): return False
-    hoja.Cells(fila, idx_owner).Value = ultimo_valor
+
+    # Escribir con reintentos y manejo de errores
+    try:
+        escribir_celda_seguro(hoja, fila, idx_owner, ultimo_valor, excel, wb)
+    except Exception as e:
+        print(f"\n  ERROR CRÍTICO al escribir en Excel: {e}")
+        print("  Se recomienda pausar (0) y revisar si Excel tiene algún diálogo abierto.")
+        return False
+
     if not es_prueba:
         print(f"('{ultimo_valor}')")
     else:
@@ -266,7 +300,8 @@ def procesar_excel():
     pausado = False
 
     excel, wb = obtener_excel_abierto()
-    if not excel or not wb: return
+    if not excel or not wb:
+        return
 
     try:
         hoja = wb.Sheets(NOMBRE_HOJA)
@@ -288,7 +323,8 @@ def procesar_excel():
     fila = 2
     while True:
         id_valor = hoja.Cells(fila, idx_id).Value
-        if id_valor is None: break
+        if id_valor is None:
+            break
         if fila_visible(hoja, fila) and (hoja.Cells(fila, idx_owner).Value is None or str(hoja.Cells(fila, idx_owner).Value).strip() == ""):
             primera_fila = fila
             break
@@ -301,21 +337,19 @@ def procesar_excel():
     valor_element_ref = str(hoja.Cells(primera_fila, idx_element).Value).strip()
     print(f"Primera fila visible: {primera_fila}, ELEMENT = '{valor_element_ref}'")
 
-    print("Recopilando filas del bloque (máximo 5 para prueba)...")
+    print("Recopilando filas del bloque...")
     filas_a_procesar = []
     fila = primera_fila
     while True:
         id_valor = hoja.Cells(fila, idx_id).Value
-        if id_valor is None: break
+        if id_valor is None:
+            break
         if fila_visible(hoja, fila):
             element_valor = str(hoja.Cells(fila, idx_element).Value).strip()
             if element_valor != valor_element_ref:
                 break
             if hoja.Cells(fila, idx_owner).Value is None or str(hoja.Cells(fila, idx_owner).Value).strip() == "":
                 filas_a_procesar.append((fila, str(id_valor)))
-                if len(filas_a_procesar) >= 5:
-                    print("   Límite de 5 filas alcanzado.")
-                    break
         fila += 1
 
     if not filas_a_procesar:
@@ -324,18 +358,18 @@ def procesar_excel():
 
     total = len(filas_a_procesar)
     print(f"\nTotal de filas a procesar: {total}")
-    print("[CONTROL] p=pausa, q=detener\n")
+    print("[CONTROL] 0=pausa, 1=detener\n")
 
     if input("¿Prueba solo el primer ID? (s/n): ").lower() == 's':
         input("Prepara el SW y presiona ENTER...")
         fila, id_texto = filas_a_procesar[0]
-        if procesar_fila(hoja, fila, id_texto, idx_owner, total, 1, es_prueba=True):
+        if procesar_fila(hoja, fila, id_texto, idx_owner, total, 1, es_prueba=True, excel=excel, wb=wb):
             if total > 1 and not detener and input(f"¿Procesar las {total-1} restantes? (s/n): ").lower() == 's':
                 for i, (f, txt) in enumerate(filas_a_procesar[1:], start=2):
                     if detener: break
                     esperar_si_pausado()
                     if detener: break
-                    procesar_fila(hoja, f, txt, idx_owner, total, i, es_prueba=False)
+                    procesar_fila(hoja, f, txt, idx_owner, total, i, es_prueba=False, excel=excel, wb=wb)
         else:
             print("Prueba fallida o cancelada.")
     else:
@@ -344,9 +378,27 @@ def procesar_excel():
             if detener: break
             esperar_si_pausado()
             if detener: break
-            procesar_fila(hoja, f, txt, idx_owner, total, i, es_prueba=False)
+            procesar_fila(hoja, f, txt, idx_owner, total, i, es_prueba=False, excel=excel, wb=wb)
 
+    # Restaurar configuraciones de Excel
+    try:
+        excel.DisplayAlerts = True
+        excel.EnableEvents = True
+    except:
+        pass
     print("\nProceso finalizado.")
 
 if __name__ == "__main__":
     procesar_excel()
+
+
+
+
+
+
+
+
+
+
+
+    
