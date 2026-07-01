@@ -27,7 +27,7 @@ _block
         _endif
 
         id_port << texto[1].as_number()
-        puerto_central << texto[2].write_string
+        cambio_serv_man << texto[2].write_string
 
         posibles_ports << ports.select(predicate.eq(:id, id_port))
         un_port << posibles_ports.an_element()
@@ -35,7 +35,7 @@ _block
         _if un_port _isnt _unset
         _then
             _try
-                un_port.puerto_central << puerto_central 
+                un_port.cambio_serv_man << cambio_serv_man 
                 lista_modificada.add(linea + "|EXITOSO")
                 contador_exitosos << contador_exitosos + 1
             _when error

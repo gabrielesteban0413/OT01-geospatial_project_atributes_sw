@@ -1,5 +1,5 @@
 _block
-    ruta_fuente << "C:\\A_GS1_PROYECTOS\\0_Documents_gs\\scripts\\monitoring\\private_collections\\00_out.txt"
+    ruta_fuente << "C:\\A_GS1_PROYECTOS\\0_Documents_gs\\database\\smallworld\\private_collections\\00_out.txt"
 
     vista << gis_program_manager.cached_dataset(:gis)
     vista.checkpoint("PT_TYP_MS")
@@ -11,10 +11,10 @@ _block
     contador_exitosos << 0
     contador_fallidos << 0
 
-    _for una_linea _over 1.upto(1000000000)
+    _for una_linea _over 1.upto(10000000000000)
     _loop
         linea << archivo_fuente.get_line()
-        _if linea _is _unset
+        _if linea _is _unset        
         _then
             _leave
         _endif

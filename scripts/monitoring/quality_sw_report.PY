@@ -280,7 +280,7 @@ RE_DESCRIPCION_DEMARCADOR      = re.compile(r'^DEMARCADOR CLIENTE (\d+)$')
 RE_IPV4                        = re.compile(r'^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})(/\d{1,2})?$')
 
 PREFIJOS_EXCLUIR_VALIDACION = {"C.C", "ANT", "(SED)", "(REDP)", "COLEGIO", "TM", "EDIFICIO", "IED", "TORRE","NODO"}
-PREFIJOS_ID_SERVICIO        = ("CAV", "ID", "IP", "PI", "SEG", "TI")
+PREFIJOS_ID_SERVICIO        = ("CAV", "ID", "IP", "PI", "SEG", "TI","CAV30-C")
 PREFIJOS_SERVICE_MANAGER    = ("OC-", "C", "WO", "APR")
 PREFIJOS_EQUIPO_CENTRAL     = ("BO", "VI", "PA","BOBSH930601","BOCHHU930601","CHCHHU930601","CUZPHU930601","SOPOHU930301")
 

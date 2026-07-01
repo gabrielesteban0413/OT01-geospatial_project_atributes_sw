@@ -390,15 +390,3 @@ def procesar_excel():
 
 if __name__ == "__main__":
     procesar_excel()
-
-
-
-
-
-
-
-
-
-
-
-    

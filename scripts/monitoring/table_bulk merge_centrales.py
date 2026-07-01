@@ -20,7 +20,7 @@ if not BASE_PATH_STR:
 
 BASE_PATH = Path(BASE_PATH_STR)
 
-RUTA_CENTRALES = BASE_PATH / "01-Bulk Merge_Centrales.xlsx"
+RUTA_CENTRALES = BASE_PATH / "01-Bulk Merge_Centrales 12.xlsx"
 RUTA_PORTS = BASE_PATH / "01-Bulk export of ports.xlsx"
 RUTA_ANILLOS_CAMBIO = BASE_PATH / "03-anillos-cambio.xlsx"
 RUTA_BASE_EC = Path(os.getenv("GS_BASE_EQUIPO-CENTRAL", ""))

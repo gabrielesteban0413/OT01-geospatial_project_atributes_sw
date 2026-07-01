@@ -1,5 +1,5 @@
 _block
-    ruta_fuente << "C:\Users\jeinvel1\Desktop\F01_old_name.txt"
+    ruta_fuente << "C:\A_GS1_PROYECTOS\0_Documents_gs\database\smallworld\private_collections\00_out.txt"
     #"C:\\A_GS1_PROYECTOS\\0_Documents_gs\\src\\private_collections\\ConnSheathWithLoc\\edit\\F01_old_name.txt"
 
     vista << gis_program_manager.cached_dataset(:gis)
