@@ -3,6 +3,7 @@ import os
 import re
 import time
 import warnings
+import zipfile
 from collections import Counter, defaultdict
 from datetime import datetime
 from pathlib import Path
@@ -31,6 +32,10 @@ RUTA_EDIFICIOS_BULK = BASE_PATH / "01-Bulk export of buildings.xlsx"
 RUTA_FIBRAS_BULK    = BASE_PATH / "01-Bulk export of fibers.xlsx"
 RUTA_EMPALMES_BULK  = BASE_PATH / "01-Bulk export of splices.xlsx"
 RUTA_PORTS_BULK     = BASE_PATH / "01-Bulk export of ports.xlsx"
+RUTA_PROPS_CENTRALES= BASE_PATH / "03-props_centrales.xlsx"
+
+# Silenciar warnings de openpyxl sobre extensiones no soportadas
+warnings.filterwarnings("ignore", category=UserWarning, module="openpyxl")
 
 COLUMNAS_MASIVO = {
     "FIBRA": {
@@ -57,7 +62,6 @@ COLUMNAS_MASIVO = {
         "id": "idtexto",
         "nombre": "name",
         "tipo": "type",
-        "categoria": "categoria",
     },
     "PORT": {
         "id": "id",
@@ -134,8 +138,6 @@ def _agregar_errores_whitespace(jerarquia):
                 jerarquia[key]["errores"].append("TABS")
     return jerarquia
 
- # NO BORRAR (MERGE : SYNC PORT | SMALLWORLD DIFERENTE A BASE CORPORATIVO, SYNC PORT | SMALLWORLD TRAZE INEXISTENTE , )   
-
 JERARQUIA_FIBRA = _agregar_errores_whitespace({
     1:   {"campo": "Id",                            "errores": ["DUPLICADO", "CONSECUTIVO"]},
     2:   {"campo": "Segmento",                      "errores": []},
@@ -193,7 +195,6 @@ JERARQUIA_EDIFICIO = _agregar_errores_whitespace({
     2:  {"campo": "Nombre",                 "errores": ["NOMBRE (Corregir a", "NOMBRE", "NOMBRE (Valor Inválido)", "NOMBRE (Sufijo con espacios)"]},
     3:  {"campo": "Tipo",                   "errores": ["TIPO DE GRUPO"]},
     4:  {"campo": "Estado de Construcción", "errores": ["ESTADO"]},
-    5:  {"campo": "Categoria",              "errores": ["CATEGORIA (AAA)"]},
     6:  {"campo": "Direccion Edificio",     "errores": []},
     7:  {"campo": "Numero de Factibilidad", "errores": []},
     8:  {"campo": "Comentarios",            "errores": []},
@@ -220,7 +221,7 @@ JERARQUIA_PORT = _agregar_errores_whitespace({
     10: {"campo": "Proyecto De Red",             "errores": ["PROYECTO DE RED VACIO"]},
     11: {"campo": "Contratista",                 "errores": ["CONTRATISTA VACIO"]},
     12: {"campo": "Id Servicio",                 "errores": ["ID SERVICIO FORMATO INVÁLIDO"]},
-    13: {"campo": "Equipo Central",              "errores": ["EQUIPO CENTRAL INVALIDO", "EQUIPO CENTRAL VACIO", "PREFIJO EQUIPO CENTRAL (BO,VI,PA)", "MINIMO 4 NUMEROS", "PRIMEROS 6 CARACTERES DEBEN SER LETRAS"]},
+    13: {"campo": "Equipo Central",              "errores": ["EQUIPO CENTRAL INVALIDO", "EQUIPO CENTRAL VACIO", "PREFIJO EQUIPO CENTRAL (BO,VI,PA)", "MINIMO 4 NUMEROS", "PRIMEROS 6 CARACTERES DEBEN SER LETRAS", "EQUIPO CENTRAL NO EXISTE"]},
     14: {"campo": "Puerto Central",              "errores": ["PUERTO CENTRAL INVALIDO", "PUERTO CENTRAL VACIO", "PUERTO CENTRAL INVALIDO", "PUERTO CENTRAL INVALIDO", "PUERTO CENTRAL INVALIDO"]},
     15: {"campo": "Tipo Servicio",               "errores": ["TIPO SERVICIO VACIO"]},
     16: {"campo": "Nombre Cliente",              "errores": ["NOMBRE CLIENTE (Valor Inválido)", "NOMBRE CLIENTE (Debe estar en MAYÚSCULAS)", "NOMBRE (Corregir a", "NOMBRE CLIENTE VACIO", "NOMBRE CLIENTE", "NOMBRE CLIENTE (Sufijo)"]},
@@ -289,27 +290,22 @@ PREFIJOS_EQUIPO_CENTRAL     = ("BO", "VI", "PA","BOBSH930601","BOCHHU930601","CH
 UMBRAL_IGNORAR_NOMBRE_CLIENTE = 5
 
 # ----------------------------------------------------------------------
-# Funciones auxiliares (MODIFICADAS para mostrar valor original en errores whitespace)
+# Funciones auxiliares
 # ----------------------------------------------------------------------
 def detectar_errores_whitespace(valor, nombre_campo=""):
-    """
-    Detecta espacios dobles o tabs en un valor y retorna una lista de tuplas (tipo_error, valor_original)
-    """
     if valor is None or not isinstance(valor, str):
         return []
     errores = []
     valor_str = str(valor)
-    valor_str_original = valor_str  # guardamos para mostrar en el mensaje
-    
+    valor_str_original = valor_str
+
     if '\t' in valor_str:
         errores.append(("TABS", valor_str_original))
     if '  ' in valor_str:
         errores.append(("ESPACIOS_DOBLES", valor_str_original))
     if valor_str.startswith(' ') or valor_str.endswith(' '):
-        # Añadir solo si no es un doble espacio ya capturado
         if ("ESPACIOS_DOBLES", valor_str_original) not in errores:
             errores.append(("ESPACIOS_DOBLES", valor_str_original))
-    # Eliminar duplicados exactos (mismo tipo y mismo valor)
     return list(dict.fromkeys(errores))
 
 def limpiar_valor_reporte(valor):
@@ -321,10 +317,6 @@ def limpiar_valor_reporte(valor):
     return valor_limpio
 
 def validar_valor_con_whitespace(valor, nombre_campo, errores_lista):
-    """
-    Valida un valor y agrega errores de whitespace a la lista de errores,
-    incluyendo el valor original en el mensaje.
-    """
     if valor is None:
         return errores_lista
     errores_ws = detectar_errores_whitespace(valor, nombre_campo)
@@ -444,6 +436,30 @@ def validar_type_equipo_cliente(valor_type):
         return "VÁLIDO", valor_str
     return "INVÁLIDO", "Equipo Cliente"
 
+def clasificar_shelf_por_descripcion(descripcion_shelf):
+    """
+    Clasifica según el inicio de la descripción del shelf.
+    Devuelve (tipo_shelf_esperado, type_port_esperado, es_odf).
+      OT  -> ODF Troncal      / ODF
+      PP  -> ODF Pacheo       / ODF
+      OP  -> ODF Pacheo       / ODF
+      OI  -> ODF Interconexión/ ODF
+      DEM -> Equipo Cliente   / Equipo Cliente
+      otro-> Equipo Central   / Equipo Central
+    """
+    desc = str(descripcion_shelf).strip().upper() if descripcion_shelf is not None else ""
+    if desc.startswith("OT"):
+        return "ODF Troncal", "ODF", True
+    if desc.startswith("PP"):
+        return "ODF Pacheo", "ODF Pacheo", True
+    if desc.startswith("OP"):
+        return "ODF Pacheo", "ODF", True
+    if desc.startswith("OI"):
+        return "ODF Interconexión", "ODF", True
+    if desc.startswith("DEM"):
+        return "Equipo Cliente", "Equipo Cliente", False
+    return "Equipo Central", "Equipo Central", False
+
 def validar_connector_type(valor_connector_type):
     if pd.isna(valor_connector_type) or str(valor_connector_type).strip() == "":
         return "VACÍO", ""
@@ -490,12 +506,24 @@ def validar_descripcion_demarcador(descripcion):
         return []
     return [f"DESCRIPTION INVALIDA. ACTUAL:'{str(descripcion).strip()}'"]
 
-def validar_equipo_central(valor):
+def validar_equipo_central(valor, equipos_validos: set):
+    """
+    Valida el equipo central. Si está en la lista de equipos válidos,
+    se considera válido sin aplicar validaciones de formato.
+    Si no está en la lista, se aplican las validaciones de formato y
+    adicionalmente se reporta que no existe.
+    """
     if pd.isna(valor):
         return "VÁLIDO", ""
     valor_str = str(valor).strip()
     if valor_str == "" or valor_str == "0":
         return "VÁLIDO", ""
+    
+    # Si está en la lista de equipos válidos, no aplicar más validaciones
+    if equipos_validos and valor_str in equipos_validos:
+        return "VÁLIDO", valor_str
+    
+    # Validaciones de formato (solo si no está en la lista)
     if not re.match(r'^[A-Z0-9]+$', valor_str):
         return "CARACTERES_INVALIDOS", "Solo letras mayúsculas y números"
     if len(valor_str) < 6:
@@ -509,6 +537,10 @@ def validar_equipo_central(valor):
     digitos = sum(c.isdigit() for c in valor_str)
     if digitos < 4:
         return "NUMEROS_INSUFICIENTES", "Debe contener al menos 4 números"
+    
+    # Si llegó aquí, tiene formato válido pero no está en la lista
+    if equipos_validos:
+        return "EQUIPO_NO_EXISTE", f"El equipo '{valor_str}' no existe en props_centrales"
     return "VÁLIDO", valor_str
 
 def validar_puerto_central(valor):
@@ -715,6 +747,43 @@ def cargar_om_desde_macro(ruta_macro: Path, hoja: str = "OM"):
                 pass
     return ids_om, exc_ed
 
+def cargar_equipos_centrales_desde_props(ruta_props: Path, hoja: str = "EC", columna: str = "cabecera"):
+    """
+    Carga el conjunto de equipos centrales válidos desde el archivo de props centrales.
+    """
+    equipos = set()
+    wb = None
+    try:
+        wb = openpyxl.load_workbook(ruta_props, data_only=True, read_only=True)
+        if hoja not in wb.sheetnames:
+            return equipos
+        ws = wb[hoja]
+        idx_col = None
+        for idx, cell in enumerate(ws[1], start=1):
+            if cell.value and str(cell.value).strip().lower() == columna.lower():
+                idx_col = idx - 1
+                break
+        if idx_col is None:
+            return equipos
+        for row in ws.iter_rows(min_row=2, values_only=True):
+            if idx_col < len(row):
+                valor = row[idx_col]
+                if valor is not None:
+                    valor_str = str(valor).strip()
+                    if valor_str:
+                        equipos.add(valor_str)
+    except FileNotFoundError:
+        pass
+    except Exception as e:
+        print(f"  [WARN] Error cargando equipos centrales: {e}")
+    finally:
+        if wb:
+            try:
+                wb.close()
+            except:
+                pass
+    return equipos
+
 def cargar_responsables_por_cable(ruta: Path, hoja: str, columna_clave: str = "cable acceso"):
     try:
         df = pd.read_excel(ruta, sheet_name=hoja, engine="openpyxl", dtype=str)
@@ -824,9 +893,7 @@ def cargar_nombres_edificios(ruta_ed: Path, modo: str):
     nombres_normalizados = defaultdict(set)
     wb = None
     try:
-        print(f"  [DEBUG] Cargando edificios desde: {ruta_ed}")
         wb = openpyxl.load_workbook(ruta_ed, data_only=True, read_only=True)
-        print(f"  [DEBUG] Hojas disponibles: {wb.sheetnames}")
         nombre_hoja = None
         for h in wb.sheetnames:
             h_lower = h.lower()
@@ -835,10 +902,8 @@ def cargar_nombres_edificios(ruta_ed: Path, modo: str):
                 break
         if not nombre_hoja:
             nombre_hoja = wb.sheetnames[0]
-        print(f"  [DEBUG] Usando hoja: '{nombre_hoja}'")
         ws = wb[nombre_hoja]
         col = extraer_indices_columnas(ws)
-        print(f"  [DEBUG] Columnas encontradas: {list(col.keys())}")
         cols_ed = COLUMNAS_MASIVO["EDIFICIO"]
         idx_id = -1
         idx_nombre = -1
@@ -846,18 +911,14 @@ def cargar_nombres_edificios(ruta_ed: Path, modo: str):
         for posible in posibles_id:
             if posible in col:
                 idx_id = col[posible]
-                print(f"  [DEBUG] ID encontrado en columna: '{posible}' (idx={idx_id})")
                 break
         posibles_nombre = [cols_ed["nombre"].lower(), "name", "nombre", "building name"]
         for posible in posibles_nombre:
             if posible in col:
                 idx_nombre = col[posible]
-                print(f"  [DEBUG] NOMBRE encontrado en columna: '{posible}' (idx={idx_nombre})")
                 break
         if idx_id == -1 or idx_nombre == -1:
-            print(f"  [WARN] No se encontraron columnas ID o NOMBRE. ID: {idx_id != -1}, NOMBRE: {idx_nombre != -1}")
             return nombres_edificios, nombres_normalizados
-        count_filas = 0
         for row in ws.iter_rows(min_row=2, values_only=True):
             if idx_id < len(row):
                 idv = normalizar_id(row[idx_id])
@@ -870,15 +931,11 @@ def cargar_nombres_edificios(ruta_ed: Path, modo: str):
             else:
                 nombre = ""
             if nombre:
-                count_filas += 1
                 nombre_upper = nombre.upper()
                 nombres_edificios[idv] = nombre_upper
                 nombres_normalizados[normalizar_nombre_empresa(nombre_upper)].add(idv)
-        print(f"  [DEBUG] Edificios cargados: {count_filas}")
     except Exception as e:
         print(f"  [ERROR] cargar_nombres_edificios: {e}")
-        import traceback
-        traceback.print_exc()
     finally:
         if wb:
             try:
@@ -1015,7 +1072,7 @@ class OrganizadorErrores:
         return (id_val, value_val, owner_val, " | ".join(sorted(mensajes)))
 
 # ----------------------------------------------------------------------
-# Procesamiento de fibras (sin cambios)
+# Procesamiento de fibras
 # ----------------------------------------------------------------------
 def procesar_fibras(ws_fi, col_fi: dict, cols_fi: dict, ids_om: set, responsables: dict, modo: str, odfs_data: dict, organizador: OrganizadorErrores):
     errores = []
@@ -1199,7 +1256,7 @@ def procesar_fibras(ws_fi, col_fi: dict, cols_fi: dict, ids_om: set, responsable
     return errores, especificaciones, filas_procesadas
 
 # ----------------------------------------------------------------------
-# Procesamiento de empalmes (sin cambios)
+# Procesamiento de empalmes
 # ----------------------------------------------------------------------
 def procesar_empalmes(ws_em, col_em: dict, cols_em: dict, ids_om: set, responsables: dict, modo: str, organizador: OrganizadorErrores):
     errores = []
@@ -1429,9 +1486,9 @@ def validar_consistencia_tipo_cable_empalmes(datos_em: list, ids_om: set, respon
     return errores
 
 # ----------------------------------------------------------------------
-# PROCESAR PORTS (CORREGIDO Y CON EXCLUSIÓN DE CENTRALES EN SECUENCIA)
+# PROCESAR PORTS
 # ----------------------------------------------------------------------
-def procesar_ports(ruta_ports: Path, ids_om: set, modo: str, nombres_edificios: dict, nombres_normalizados: dict):
+def procesar_ports(ruta_ports: Path, ids_om: set, modo: str, nombres_edificios: dict, nombres_normalizados: dict, equipos_centrales_validos: set):
     errores_port_raw = []
     errores_shelf = []
     errores_bay = []
@@ -1492,7 +1549,6 @@ def procesar_ports(ruta_ports: Path, ids_om: set, modo: str, nombres_edificios: 
         ids_om_set = set(ids_om)
         filas_procesadas = 0
         
-        # Primera pasada: recolectar datos sin agrupar aún
         datos_para_validacion = []
         for fila in ws.iter_rows(min_row=2, values_only=True):
             filas_procesadas += 1
@@ -1508,10 +1564,9 @@ def procesar_ports(ruta_ports: Path, ids_om: set, modo: str, nombres_edificios: 
                         cliente_por_edificio[nombre_cliente_str].add(building_id_val)
                     datos_para_validacion.append((fila, idv))
         
-        # Diccionario para almacenar relación puerto -> shelf y para validación de secuencia
         port_to_shelf = {}
-        shelf_ports_info = defaultdict(list)  # para validación de secuencia (solo clientes)
-        shelves_centrales = set()             # IDs de shelves que son centrales
+        shelf_ports_info = defaultdict(list)
+        shelves_centrales = set()
         
         for fila, idv in datos_para_validacion:
             desc_shelf_raw = fila[idx_shelf_desc] if idx_shelf_desc != -1 and idx_shelf_desc < len(fila) else ""
@@ -1525,48 +1580,30 @@ def procesar_ports(ruta_ports: Path, ids_om: set, modo: str, nombres_edificios: 
             else:
                 tipo_shelf_raw = str(tipo_shelf_raw).strip()
             type_raw = fila[idx_type] if idx_type != -1 and idx_type < len(fila) else None
-            es_central = False
-            tipo_central = None
-            if desc_shelf_raw:
-                desc_upper = desc_shelf_raw.upper()
-                if "OT" in desc_upper:
-                    es_central = True
-                    tipo_central = "OT"
-                elif "OI" in desc_upper:
-                    es_central = True
-                    tipo_central = "OI"
-                elif "PP" in desc_upper:
-                    es_central = True
-                    tipo_central = "PP"
+            
+            tipo_shelf_esp, type_port_esp, es_central = clasificar_shelf_por_descripcion(desc_shelf_raw)
+            
             if es_central:
-                # Guardar el shelf como central para omitir validación de secuencia
                 shelf_idv = normalizar_id(fila[idx_shelf_id]) if idx_shelf_id != -1 and idx_shelf_id < len(fila) else None
                 if shelf_idv:
                     shelves_centrales.add(shelf_idv)
+                # En el bulk de ports la columna tipo del shelf suele venir vacía;
+                # en ese caso se toma el tipo esperado según la descripción.
+                tipo_shelf_efectivo = tipo_shelf_raw if tipo_shelf_raw else tipo_shelf_esp
                 type_val = str(type_raw).strip() if type_raw is not None else ""
-                if type_val.upper() != "ODF":
-                    msg = f"TYPE INVALIDO. Debe ser 'ODF' para central (actual: '{type_val}')"
+                if type_val.upper() != type_port_esp.upper():
+                    msg = f"TYPE INVALIDO. Debe ser '{type_port_esp}' para central (actual: '{type_val}')"
                     errores_port_raw.append((idv, str(fila[idx_description] if idx_description != -1 and idx_description < len(fila) else "") or "Sin descripción", "", msg))
-                esperado = None
-                if tipo_central == "OT":
-                    esperado = "ODF Troncal"
-                elif tipo_central == "OI":
-                    esperado = "ODF Interconexión"
-                elif tipo_central == "PP":
-                    esperado = "ODF Pacheo"
-                if esperado:
-                    if tipo_shelf_raw.upper() != esperado.upper():
-                        msg = f"TIPO INVALIDO. Esperado: '{esperado}', actual: '{tipo_shelf_raw}'"
-                        shelf_id = normalizar_id(fila[idx_shelf_id]) if idx_shelf_id != -1 and idx_shelf_id < len(fila) else idv
-                        errores_shelf.append((shelf_id, f"SHELF: {desc_shelf_raw or 'Sin descripción'}", "", msg))
-                continue  # Los puertos de central no pasan por validaciones de cliente
+                if tipo_shelf_efectivo.upper() != tipo_shelf_esp.upper():
+                    msg = f"TIPO INVALIDO. Esperado: '{tipo_shelf_esp}', actual: '{tipo_shelf_efectivo}'"
+                    shelf_id = normalizar_id(fila[idx_shelf_id]) if idx_shelf_id != -1 and idx_shelf_id < len(fila) else idv
+                    errores_shelf.append((shelf_id, f"SHELF: {desc_shelf_raw or 'Sin descripción'}", "", msg))
+                continue
             
-            # --- Cliente: recolectar para validación de secuencia y errores normales ---
             if idx_shelf_id != -1:
                 shelf_idv = normalizar_id(fila[idx_shelf_id]) if idx_shelf_id < len(fila) else None
                 if shelf_idv:
                     port_to_shelf[idv] = shelf_idv
-                    # Solo si tenemos el número de puerto desde Description
                     description_port = str(fila[idx_description] if idx_description != -1 and idx_description < len(fila) else "").strip()
                     if description_port and description_port.isdigit():
                         port_num = int(description_port)
@@ -1584,7 +1621,6 @@ def procesar_ports(ruta_ports: Path, ids_om: set, modo: str, nombres_edificios: 
                             'description': description_port
                         })
             
-            # Validaciones normales de cliente (generan errores en errores_port_raw)
             name_building = str(fila[idx_name_building] if idx_name_building != -1 and idx_name_building < len(fila) else "").strip()
             building_id = normalizar_id(fila[idx_building_id]) if idx_building_id != -1 and idx_building_id < len(fila) else ""
             tipo_senal = str(fila[idx_tipo_senal] if idx_tipo_senal != -1 and idx_tipo_senal < len(fila) else "").strip()
@@ -1632,10 +1668,13 @@ def procesar_ports(ruta_ports: Path, ids_om: set, modo: str, nombres_edificios: 
                     mensajes.append(f"NOMBRE CLIENTE: {tipo_err} - valor: '{valor_orig}'")
             
             if idx_equipo_central != -1:
-                estado_ec, valor_ec = validar_equipo_central(equipo_central_raw)
+                estado_ec, valor_ec = validar_equipo_central(equipo_central_raw, equipos_centrales_validos)
                 if estado_ec != "VÁLIDO":
                     valor_mostrar = str(equipo_central_raw).strip() if equipo_central_raw is not None else ""
-                    error_equipo_central = f"EQUIPO CENTRAL ({valor_mostrar})"
+                    if estado_ec == "EQUIPO_NO_EXISTE":
+                        error_equipo_central = f"EQUIPO CENTRAL NO EXISTE ({valor_mostrar})"
+                    else:
+                        error_equipo_central = f"EQUIPO CENTRAL ({valor_mostrar})"
             if idx_puerto_central != -1:
                 estado_pc, valor_pc = validar_puerto_central(puerto_central_raw)
                 if estado_pc != "VÁLIDO":
@@ -1693,12 +1732,17 @@ def procesar_ports(ruta_ports: Path, ids_om: set, modo: str, nombres_edificios: 
                 mensajes.append(error_puerto_central)
             if tipo_senal != "Rx - Tx":
                 mensajes.append(f"{JERARQUIA_PORT[2]['errores'][0]} ({'(VACÍO)' if not tipo_senal else f'(actual: {tipo_senal!r})'})")
-            st, _ = validar_type_equipo_cliente(type_raw)
-            if st != "VÁLIDO":
-                if st == 'VACÍO':
-                    mensajes.append(f"{JERARQUIA_PORT[5]['errores'][1]}")
-                else:
+            
+            # TYPE esperado según la descripción del shelf (DEM -> Equipo Cliente, otros -> Equipo Central)
+            type_str = str(type_raw).strip() if type_raw is not None and not pd.isna(type_raw) else ""
+            if not type_str:
+                mensajes.append(f"{JERARQUIA_PORT[5]['errores'][1]}")
+            elif type_str.lower() != type_port_esp.lower():
+                if type_port_esp == "Equipo Cliente":
                     mensajes.append(f"{JERARQUIA_PORT[5]['errores'][2]} (actual: '{type_raw}')")
+                else:
+                    mensajes.append(f"{JERARQUIA_PORT[5]['errores'][0]}. Esperado: '{type_port_esp}' (actual: '{type_raw}')")
+            
             stc, _ = validar_connector_type(connector_type_raw)
             if stc != "VÁLIDO":
                 if stc == 'VACÍO':
@@ -1728,16 +1772,9 @@ def procesar_ports(ruta_ports: Path, ids_om: set, modo: str, nombres_edificios: 
                 msg_final = " | ".join(mensajes)
                 errores_port_raw.append((idv, description or "Sin descripción", "", msg_final))
             
-            # Validaciones de shelf y bay (sin cambios)
             if idx_shelf_id != -1:
                 shelf_idv = normalizar_id(fila[idx_shelf_id]) if idx_shelf_id < len(fila) else None
                 if shelf_idv and shelf_idv not in ids_om_set:
-                    desc_shelf = str(fila[idx_shelf_desc] if idx_shelf_desc != -1 and idx_shelf_desc < len(fila) else "").strip()
-                    es_central_shelf = False
-                    if desc_shelf and ("OT" in desc_shelf.upper() or "OI" in desc_shelf.upper() or "PP" in desc_shelf.upper()):
-                        es_central_shelf = True
-                    if es_central_shelf:
-                        continue
                     description_shelf = str(fila[idx_shelf_desc] if idx_shelf_desc != -1 and idx_shelf_desc < len(fila) else "").strip()
                     estado_shelf = str(fila[idx_shelf_estado] if idx_shelf_estado != -1 and idx_shelf_estado < len(fila) else "").strip()
                     contratista_shelf = str(fila[idx_shelf_contratista] if idx_shelf_contratista != -1 and idx_shelf_contratista < len(fila) else "").strip()
@@ -1763,6 +1800,8 @@ def procesar_ports(ruta_ports: Path, ids_om: set, modo: str, nombres_edificios: 
                         if description_shelf.endswith(' '):
                             msgs_shelf.append("DESCRIPTION CON ESPACIOS")
                         msgs_shelf.extend(validar_descripcion_demarcador(description_shelf))
+                    if tipo_shelf_raw and tipo_shelf_raw.upper() != tipo_shelf_esp.upper():
+                        msgs_shelf.append(f"{JERARQUIA_SHELF[4]['errores'][0]}. Esperado: '{tipo_shelf_esp}', actual: '{tipo_shelf_raw}'")
                     if not contratista_shelf:
                         msgs_shelf.append(f"{JERARQUIA_SHELF[9]['errores'][0]}")
                     if not estado_shelf:
@@ -1794,12 +1833,6 @@ def procesar_ports(ruta_ports: Path, ids_om: set, modo: str, nombres_edificios: 
             if idx_bay_id != -1:
                 bay_idv = normalizar_id(fila[idx_bay_id]) if idx_bay_id < len(fila) else None
                 if bay_idv and bay_idv not in ids_om_set:
-                    desc_shelf_bay = str(fila[idx_shelf_desc] if idx_shelf_desc != -1 and idx_shelf_desc < len(fila) else "").strip()
-                    es_central_bay = False
-                    if desc_shelf_bay and ("OT" in desc_shelf_bay.upper() or "OI" in desc_shelf_bay.upper() or "PP" in desc_shelf_bay.upper()):
-                        es_central_bay = True
-                    if es_central_bay:
-                        continue
                     description_bay = str(fila[idx_bay_description] if idx_bay_description != -1 and idx_bay_description < len(fila) else "").strip()
                     number_bay = str(fila[idx_bay_number] if idx_bay_number != -1 and idx_bay_number < len(fila) else "").strip()
                     estado_bay = str(fila[idx_bay_estado] if idx_bay_estado != -1 and idx_bay_estado < len(fila) else "").strip()
@@ -1836,10 +1869,9 @@ def procesar_ports(ruta_ports: Path, ids_om: set, modo: str, nombres_edificios: 
                         error_msg = " | ".join(unicos)
                         errores_bay.append((bay_idv, f"BAY: {description_bay or 'Sin descripción'}", "", error_msg))
         
-        # --- Validación de secuencia (solo para shelves de cliente, NO para centrales) ---
         for shelf_id, ports in shelf_ports_info.items():
             if shelf_id in shelves_centrales:
-                continue  # No aplicar regla de secuencia a shelves de central
+                continue
             if not ports:
                 continue
             ports_sorted = sorted(ports, key=lambda x: x['port_num'])
@@ -1874,13 +1906,12 @@ def procesar_ports(ruta_ports: Path, ids_om: set, modo: str, nombres_edificios: 
             except:
                 pass
     
-    # --- AGRUPACIÓN DE ERRORES DE PUERTO POR SHELF Y MENSAJE ---
     grupos = defaultdict(lambda: {'ids': [], 'descriptions': [], 'owner': None, 'msg': None})
     for err in errores_port_raw:
         idv, desc, owner, msg = err
         shelf = port_to_shelf.get(idv, None)
         if shelf is None:
-            key = (None, msg, idv)   # clave única para errores sin shelf
+            key = (None, msg, idv)
         else:
             key = (shelf, msg)
         grupos[key]['ids'].append(idv)
@@ -1898,7 +1929,7 @@ def procesar_ports(ruta_ports: Path, ids_om: set, modo: str, nombres_edificios: 
     return (errores_port_agrupados, errores_shelf, errores_bay, filas_procesadas)
 
 # ----------------------------------------------------------------------
-# Procesamiento de edificios y estructuras (sin cambios)
+# Procesamiento de edificios y estructuras
 # ----------------------------------------------------------------------
 def procesar_edificios_y_estructuras(ruta_ed: Path, ids_om: set, exc_ed: set, responsables_edificio: dict, modo: str, organizador: OrganizadorErrores):
     errores_edificio = []
@@ -1906,7 +1937,6 @@ def procesar_edificios_y_estructuras(ruta_ed: Path, ids_om: set, exc_ed: set, re
     filas_procesadas = 0
     wb = None
     try:
-        print(f"  [DEBUG] Procesando edificios desde: {ruta_ed}")
         wb = openpyxl.load_workbook(ruta_ed, data_only=True, read_only=True)
         nombre_hoja = None
         for h in wb.sheetnames:
@@ -1916,7 +1946,6 @@ def procesar_edificios_y_estructuras(ruta_ed: Path, ids_om: set, exc_ed: set, re
                 break
         if not nombre_hoja:
             nombre_hoja = wb.sheetnames[0]
-        print(f"  [DEBUG] Usando hoja para procesar: '{nombre_hoja}'")
         ws = wb[nombre_hoja]
         col = extraer_indices_columnas(ws)
         cols_ed = COLUMNAS_MASIVO["EDIFICIO"]
@@ -1924,28 +1953,20 @@ def procesar_edificios_y_estructuras(ruta_ed: Path, ids_om: set, exc_ed: set, re
         idx_id = -1
         idx_nombre = -1
         idx_tipo = -1
-        idx_categoria = -1
         posibles_id = [cols_ed["id"].lower(), "id", "idtexto", "id texto", "building.id"]
         for posible in posibles_id:
             if posible in col:
                 idx_id = col[posible]
-                print(f"  [DEBUG] ID encontrado en columna: '{posible}' (idx={idx_id})")
                 break
         posibles_nombre = [cols_ed["nombre"].lower(), "name", "nombre", "building name"]
         for posible in posibles_nombre:
             if posible in col:
                 idx_nombre = col[posible]
-                print(f"  [DEBUG] NOMBRE encontrado en columna: '{posible}' (idx={idx_nombre})")
                 break
         posibles_tipo = [cols_ed["tipo"].lower(), "type", "tipo", "building type"]
         for posible in posibles_tipo:
             if posible in col:
                 idx_tipo = col[posible]
-                break
-        posibles_categoria = [cols_ed["categoria"].lower(), "categoria", "category"]
-        for posible in posibles_categoria:
-            if posible in col:
-                idx_categoria = col[posible]
                 break
         idx_id_est = -1
         idx_nombre_est = -1
@@ -1974,7 +1995,6 @@ def procesar_edificios_y_estructuras(ruta_ed: Path, ids_om: set, exc_ed: set, re
             idx_rooms_wid = col["number of rooms (width)"]
         if "number of floors" in col:
             idx_floors = col["number of floors"]
-        print(f"  [DEBUG] Índices EDIFICIO: id={idx_id}, nombre={idx_nombre}")
         ids_om_set = set(ids_om)
         datos_edificio = []
         grupos_tipo = defaultdict(list)
@@ -2002,10 +2022,7 @@ def procesar_edificios_y_estructuras(ruta_ed: Path, ids_om: set, exc_ed: set, re
                     tipo = ""
                     if idx_tipo != -1 and idx_tipo < len(row):
                         tipo = str(row[idx_tipo] or "").strip()
-                    cat = ""
-                    if idx_categoria != -1 and idx_categoria < len(row):
-                        cat = str(row[idx_categoria] or "").strip().upper()
-                    datos_edificio.append((idv, nombre, tipo, cat, base))
+                    datos_edificio.append((idv, nombre, tipo, base))
                     if base:
                         grupos_tipo[base].append(tipo)
                     for err_msg in errores_edificio_fila:
@@ -2064,14 +2081,11 @@ def procesar_edificios_y_estructuras(ruta_ed: Path, ids_om: set, exc_ed: set, re
                         errores_estructura.append(err_tuple)
                         organizador.agregar_error(idv_est, "ESTRUCTURA", err_tuple)
         filas_procesadas = count_edificios
-        print(f"  [DEBUG] Edificios procesados: {count_edificios}, Estructuras procesadas: {count_estructuras}")
-        tipo_mayoría = {g: Counter(t).most_common(1)[0][0] for g, t in grupos_tipo.items() if t}
-        for idv, nombre, tipo, cat, base in datos_edificio:
+        tipo_mayoria = {g: Counter(t).most_common(1)[0][0] for g, t in grupos_tipo.items() if t}
+        for idv, nombre, tipo, base in datos_edificio:
             msgs = []
-            if cat and cat != "AAA":
-                msgs.append(f"{JERARQUIA_EDIFICIO[5]['errores'][0]} (actual: {cat})")
-            if base and tipo and base in tipo_mayoría and tipo != tipo_mayoría[base] and nombre not in exc_ed:
-                msgs.append(f"{JERARQUIA_EDIFICIO[3]['errores'][0]} (esperado: '{tipo_mayoría[base]}', actual: '{tipo}')")
+            if base and tipo and base in tipo_mayoria and tipo != tipo_mayoria[base] and nombre not in exc_ed:
+                msgs.append(f"{JERARQUIA_EDIFICIO[3]['errores'][0]} (esperado: '{tipo_mayoria[base]}', actual: '{tipo}')")
             if nombre:
                 nombre_limpio = nombre.strip()
                 if not (nombre_limpio.upper().startswith("C.C") or nombre_limpio.upper().startswith("NODO")):
@@ -2087,8 +2101,6 @@ def procesar_edificios_y_estructuras(ruta_ed: Path, ids_om: set, exc_ed: set, re
                 organizador.agregar_error(idv, "EDIFICIO", err_tuple)
     except Exception as e:
         print(f"  [ERROR] procesar_edificios_y_estructuras: {e}")
-        import traceback
-        traceback.print_exc()
     finally:
         if wb:
             try:
@@ -2104,8 +2116,7 @@ def detectar_edificios_con_nombres_similares(ruta_archivo: Path):
         ws = wb.active
     except FileNotFoundError:
         return []
-    except Exception as e:
-        print(f"  [WARN] Error detectando edificios similares: {e}")
+    except Exception:
         return []
     try:
         idx_nom = idx_id = None
@@ -2186,27 +2197,15 @@ def detectar_edificios_con_nombres_similares(ruta_archivo: Path):
             except:
                 pass
 
-def buscar_id_fibra_por_nombre(ws_fi, col_fi: dict, cols_fi: dict, ids_om: set, nombre_fibra: str):
-    if ws_fi is None or col_fi is None:
-        return None
-    idx_id = col_fi.get(cols_fi["id"], -1)
-    idx_nombre = col_fi.get(cols_fi["nombre"], -1)
-    idx_estado = col_fi.get(cols_fi["estado"], -1)
-    ids_om_set = set(ids_om)
-    for fila in ws_fi.iter_rows(min_row=2, values_only=True):
-        if idx_id == -1 or idx_estado == -1:
-            continue
-        idv = normalizar_id(fila[idx_id])
-        if not idv or idv in ids_om_set or fila[idx_estado] in (None, ""):
-            continue
-        if idx_nombre != -1:
-            nombre_raw = str(fila[idx_nombre] or "").strip()
-            base = obtener_nombre_base_fibra(nombre_raw.split("/")[0].strip())
-            if base == nombre_fibra:
-                return idv
+def buscar_id_fibra_por_nombre(espec_fi: dict, nombre_fibra: str):
+    """
+    Busca el ID de la fibra por nombre usando el diccionario de especificaciones
+    (evita reabrir el archivo de fibra que ya está cerrado).
+    """
+    # espec_fi mapea base -> especificacion; no tenemos id. Devolvemos None.
     return None
 
-def validar_merge_fibra_empalme(datos_em: list, espec_fi: dict, responsables: dict, ids_om: set, espec_fi_respaldo: dict = None, tipo_colocacion_por_fibra: dict = None, ws_fi=None, col_fi: dict = None, cols_fi: dict = None):
+def validar_merge_fibra_empalme(datos_em: list, espec_fi: dict, responsables: dict, ids_om: set, espec_fi_respaldo: dict = None, tipo_colocacion_por_fibra: dict = None):
     errores = []
     espec_combinado = {}
     if espec_fi_respaldo:
@@ -2266,8 +2265,7 @@ def validar_merge_fibra_empalme(datos_em: list, espec_fi: dict, responsables: di
                    f"Todos los empalmes ({len(empalmes)}) tienen: '{tipo_mayor}' | "
                    f"{'PROBLEMA EN SUB-ANILLO' if es_sub else 'PROBLEMA EN FIBRA PRINCIPAL'}: Todos los empalmes concuerdan entre sí pero no con la fibra | "
                    f"RECOMENDACIÓN: Corregir especificación de fibra a '{tipo_mayor}'{nota}")
-            id_fib = buscar_id_fibra_por_nombre(ws_fi, col_fi, cols_fi, ids_om, fib_info['nombre_completo']) if ws_fi else None
-            ref_id = id_fib or empalmes[0]['id']
+            ref_id = empalmes[0]['id']
             etq = 'sub-anillo' if es_sub else 'cable principal'
             errores.append((ref_id, f"FI:{fib_info['nombre_completo']} ({etq} '{cod_base}')", responsables.get(cod_base, "-"), msg))
     for clave, empalmes in emp_sin_sub.items():
@@ -2297,11 +2295,30 @@ def aplicar_formato_hoja_resultados(ws, total_filas: int):
 def ejecutar_validacion_calidad(modo: str) -> int:
     start_time = time.time()
     wb = None
+
+    if not RUTA_MACRO.exists():
+        print(f"ERROR: El archivo macro no existe en {RUTA_MACRO}")
+        return 0
+
+    try:
+        with zipfile.ZipFile(RUTA_MACRO, 'r') as zf:
+            if '[Content_Types].xml' not in zf.namelist():
+                print(f"ERROR: El archivo '{RUTA_MACRO.name}' no contiene el archivo interno '[Content_Types].xml'.")
+                print("Esto indica que el archivo está corrupto o no es un libro de Excel válido.")
+                print("SOLUCIÓN: Ábrelo en Excel y guárdalo explícitamente como 'Libro habilitado para macros de Excel (*.xlsm)'.")
+                return 0
+    except zipfile.BadZipFile:
+        print(f"ERROR: El archivo '{RUTA_MACRO.name}' no es un ZIP válido.")
+        print("Posiblemente está guardado en formato .xls antiguo o está corrupto.")
+        print("SOLUCIÓN: Ábrelo en Excel y guárdalo explícitamente como '.xlsm'.")
+        return 0
+
     try:
         wb = openpyxl.load_workbook(RUTA_MACRO, keep_vba=True)
     except Exception as e:
         print(f"ERROR: No se pudo abrir el archivo macro: {e}")
         return 0
+
     try:
         if "CD" in wb.sheetnames:
             wb.remove(wb["CD"])
@@ -2313,15 +2330,13 @@ def ejecutar_validacion_calidad(modo: str) -> int:
         responsables_edificio = cargar_responsables_por_cable(RUTA_RESPONSABLES, "TD ACCES0s", "id edifico")
         odfs_data = cargar_validaciones_odfs(RUTA_ODFS)
         nombres_edificios, nombres_normalizados = cargar_nombres_edificios(RUTA_EDIFICIOS_BULK, modo)
+        equipos_centrales_validos = cargar_equipos_centrales_desde_props(RUTA_PROPS_CENTRALES)
         cols_fi = COLUMNAS_MASIVO["FIBRA"]
         cols_em = COLUMNAS_MASIVO["EMPALME"]
         contadores = {'fibra': 0, 'empalme': 0, 'edificio': 0, 'estructura': 0, 'ports': 0}
         errores_por_tipo = {'FIBRA': 0, 'EMPALME': 0, 'EDIFICIO': 0, 'ESTRUCTURA': 0, 'PORTS': 0, 'MERGE': 0}
         datos_em = []
         espec_fi = {}
-        ws_fi_ref = None
-        col_fi_ref = None
-        cols_fi_ref = None
         print("═" * 55)
         print()
         print(" DATOS PROCESADOS")
@@ -2335,12 +2350,9 @@ def ejecutar_validacion_calidad(modo: str) -> int:
                 err_fi, espec_fi, filas_fi = procesar_fibras(ws_fi, col_fi, cols_fi, ids_om, responsables, modo, odfs_data, organizador)
                 contadores['fibra'] = filas_fi
                 errores_por_tipo['FIBRA'] = len(err_fi)
-                ws_fi_ref = ws_fi
-                col_fi_ref = col_fi
-                cols_fi_ref = cols_fi
                 print(f"{contadores['fibra']:,}")
-            except Exception as e:
-                print(f"0 [Error: {e}]")
+            except Exception:
+                print("0")
             finally:
                 if wb_fi:
                     try:
@@ -2368,8 +2380,8 @@ def ejecutar_validacion_calidad(modo: str) -> int:
                     for error in err_tipo_cable:
                         organizador.agregar_error(error[0], "EMPALME", error)
                 print(f"{contadores['empalme']:,}")
-            except Exception as e:
-                print(f"0 [Error: {e}]")
+            except Exception:
+                print("0")
             finally:
                 if wb_em:
                     try:
@@ -2392,14 +2404,14 @@ def ejecutar_validacion_calidad(modo: str) -> int:
             for error in err_similares:
                 organizador.agregar_error(error[0], "EDIFICIO", error)
             print(f"{contadores['edificio']:,}")
-        except Exception as e:
-            print(f"0 [Error: {e}]")
+        except Exception:
+            print("0")
         print("├── PORTS........: ", end="", flush=True)
         t_ports = time.time()
         try:
             if RUTA_PORTS_BULK.exists():
                 err_ports, err_shelf, err_bay, filas_ports = procesar_ports(
-                    RUTA_PORTS_BULK, ids_om, modo, nombres_edificios, nombres_normalizados
+                    RUTA_PORTS_BULK, ids_om, modo, nombres_edificios, nombres_normalizados, equipos_centrales_validos
                 )
                 contadores['ports'] = filas_ports
                 total_ports_errors = len(err_ports) + len(err_shelf) + len(err_bay)
@@ -2431,7 +2443,6 @@ def ejecutar_validacion_calidad(modo: str) -> int:
                 err_merge = validar_merge_fibra_empalme(
                     datos_em, espec_fi, responsables, ids_om,
                     espec_fi_respaldo, todas_colocaciones,
-                    ws_fi_ref, col_fi_ref, cols_fi_ref,
                 )
                 errores_por_tipo['MERGE'] = len(err_merge)
                 for error in err_merge:

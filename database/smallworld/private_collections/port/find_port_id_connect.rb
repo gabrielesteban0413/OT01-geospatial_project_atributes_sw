@@ -1,13 +1,12 @@
 _block
-    ruta_fuente << "C:\\A_GS1_PROYECTOS\\0_Documents_gs\\database\\smallworld\\private_collections\\00_out.txt"
-    ruta_salida << "C:\\A_GS1_PROYECTOS\\0_Documents_gs\\database\\smallworld\\private_collections\\00_find.txt"
+    ruta_fuente << "C:\\A_GS1_PROYECTOS\\0_Documents_gs\\database\\smallworld\\private_collections\\00_find.txt"
+    ruta_salida << "C:\\A_GS1_PROYECTOS\\0_Documents_gs\\database\\smallworld\\private_collections\\00_out.txt"
 
 
     input_file << external_text_input_stream.new(ruta_fuente)
     output_file << external_text_output_stream.new(ruta_salida)
 
     vista << gis_program_manager.cached_dataset(:gis)
-    vista.checkpoint("Findmit_rme_port")
     mit_rme_ports << vista.collection(:mit_rme_port)
     results << rope.new()
 

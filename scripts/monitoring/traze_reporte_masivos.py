@@ -27,7 +27,7 @@ RUTA_EXCLUSIONES = Path(
     r"C:\A_GS1_PROYECTOS\0_Documents_gs\output\quality\03-TRAZE_MS_CONNECTION.xlsx"
 )
 
-RUTA_SALIDA = Path(r"C:\A_GS1_PROYECTOS") / "Tabla_Conexiones_EC_OP_OT_final.xlsx"
+RUTA_SALIDA = Path(r"C:\A_GS1_PROYECTOS") / "Traze_report_masivo.xlsx"
 
 # Compilar patrones regex
 RE_FIBRE = re.compile(r'Fibre\s*\(\s*(.*?)\s*\)')

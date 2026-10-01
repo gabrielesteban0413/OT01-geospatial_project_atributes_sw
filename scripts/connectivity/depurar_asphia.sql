@@ -1,7 +1,7 @@
-DROP TABLE IF EXISTS clean.asphia_clean CASCADE;
+DROP TABLE IF EXISTS staging.cl_asphia CASCADE;
 CREATE SCHEMA IF NOT EXISTS clean;
 
-CREATE TABLE clean.asphia_clean AS
+CREATE TABLE staging.cl_asphia AS
 WITH 
 grupos AS (
     SELECT 
@@ -26,7 +26,7 @@ grupos AS (
         (ARRAY_AGG(cambio ORDER BY fecha DESC, idcliente DESC))[1] AS ultimo_cambio,
         (ARRAY_AGG(observacion ORDER BY fecha DESC, idcliente DESC))[1] AS ultima_observacion,
         MAX(fecha) AS ultima_fecha
-    FROM raw.asphia_origin
+    FROM raw.r_asphia
     WHERE n_acceso IS NOT NULL AND anillo IS NOT NULL
     GROUP BY n_acceso, anillo
 ),
@@ -41,7 +41,7 @@ historial AS (
             ' → ' ORDER BY fecha, idcliente
         ) AS historial_actividades,
         STRING_AGG(COALESCE(observacion, ''), ' | ' ORDER BY fecha, idcliente) AS historial_observaciones
-    FROM raw.asphia_origin
+    FROM raw.r_asphia
     WHERE n_acceso IS NOT NULL AND anillo IS NOT NULL
     GROUP BY n_acceso, anillo
 ),
@@ -74,7 +74,7 @@ instalacion_event AS (
         (ARRAY_AGG(bw ORDER BY fecha))[1] AS instalacion_bw,
         (ARRAY_AGG(und_bw ORDER BY fecha))[1] AS instalacion_und_bw,
         (ARRAY_AGG(n_hilo_troncal ORDER BY fecha))[1] AS instalacion_n_hilo_troncal
-    FROM raw.asphia_origin
+    FROM raw.r_asphia
     WHERE actividad = 'INSTALACION'
       AND n_acceso IS NOT NULL AND anillo IS NOT NULL
     GROUP BY n_acceso, anillo
@@ -112,7 +112,7 @@ LEFT JOIN estado_ciclos ec ON g.fibra = ec.fibra AND g.anillo = ec.anillo
 LEFT JOIN instalacion_event ie ON g.fibra = ie.fibra AND g.anillo = ie.anillo
 ORDER BY g.fecha_inicio;
 
-CREATE INDEX IF NOT EXISTS idx_asphia_clean_idservicio ON clean.asphia_clean(idservicio);
-CREATE INDEX IF NOT EXISTS idx_asphia_clean_n_acceso_anillo ON clean.asphia_clean(n_acceso, anillo);
-CREATE INDEX IF NOT EXISTS idx_asphia_clean_estado ON clean.asphia_clean(estado_ciclo);
-CREATE INDEX IF NOT EXISTS idx_asphia_clean_cliente ON clean.asphia_clean(cliente);
+CREATE INDEX IF NOT EXISTS idx_cl_asphia_idservicio ON staging.cl_asphia(idservicio);
+CREATE INDEX IF NOT EXISTS idx_cl_asphia_n_acceso_anillo ON staging.cl_asphia(n_acceso, anillo);
+CREATE INDEX IF NOT EXISTS idx_cl_asphia_estado ON staging.cl_asphia(estado_ciclo);
+CREATE INDEX IF NOT EXISTS idx_cl_asphia_cliente ON staging.cl_asphia(cliente);

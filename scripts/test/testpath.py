@@ -12,7 +12,7 @@ load_dotenv(encoding='utf-8-sig')
 DB_CONFIG = {
     'host': os.environ.get('PGHOST', 'localhost'),
     'port': os.environ.get('PGPORT', '5432'),
-    'database': os.environ.get('PGDATABASE', 'quality'),
+    'database': os.environ.get('PGDATABASE_QUALITY', 'quality'),
     'user': os.environ.get('PGUSER', 'postgres'),
     'password': os.environ.get('PGPASSWORD', '')
 }
